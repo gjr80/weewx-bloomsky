@@ -241,7 +241,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         poll_interval = int(stn_dict.get('poll_interval', 120))
         # API key issued obtained from dashboard.bloomsky.com
         api_key = stn_dict['api_key']
-        obfuscated = ''.join(("'....", api_key[-4:], "'"))
+        obfuscated = ''.join(('"....', api_key[-4:], '"'))
         logdbg('poll interval is %d seconds, API key is %s' % (poll_interval,
                                                                obfuscated))
         logdbg('max tries is %d, retry wait time is %d seconds' % (max_tries,
@@ -414,7 +414,7 @@ class ApiClient(Collector):
         self._retry_wait = retry_wait
         # get a station data object to do the handle the interraction with the
         # Bloomsky API
-        self._sd = ApiClient.StationData(api_key)
+        self.sd = ApiClient.StationData(api_key)
         self._thread = None
         self._collect_data = False
 
@@ -433,7 +433,7 @@ class ApiClient(Collector):
                     # wrap oin a try..except so we can catch any errors
                     try:
                         # get the raw JSON API response
-                        raw_data = self._sd.get_data()
+                        raw_data = self.sd.get_data()
                         # extract the data we want from the JSON response, do
                         # any manipulation/translation and return as a dict
                         data = ApiClient.extract_data(raw_data)
@@ -657,7 +657,10 @@ class ApiClient(Collector):
 
         # encode the GET parameters
         data = urlencode(params)
-        logdbg("url: %s data: %s hdr: %s" % (url, params, headers))
+        obfuscated = dict(headers)
+        if 'Authorization' in obfuscated:
+            obfuscated['Authorization'] = ''.join(("....", obfuscated['Authorization'][-4:]))
+        logdbg("url: %s data: %s hdr: %s" % (url, params, obfuscated))
         # A urllib2.Request that includes a 'data' parameter value will be sent
         # as a POST request. the Bloomsky API requires a GET request. So to
         # send as a GET request with data just append '?' and the 'data' to the
@@ -741,7 +744,7 @@ if __name__ == "__main__":
         # get an ApiClient object
         api_client = ApiClient(api_key=api_key)
         # get the JSON response
-        raw_data = api_client._sd.get_data()
+        raw_data = api_client.sd.get_data()
         # display the JSON response on screen
         print json.dumps(raw_data, sort_keys=True, indent=2)
 
