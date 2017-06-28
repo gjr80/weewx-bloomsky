@@ -85,7 +85,7 @@ To use this driver:
             windSpeed = SustainedWindSpeed
             windDir = WindDirection
             windGust = WindGust
-            rainDaily = RainDaily
+            dailyRain = RainDaily
 
     # The driver itself
     driver = user.bloomsky
@@ -132,17 +132,21 @@ your weeWX installation type:
 6.  If weeWX is running stop then start weeWX otehrwise start weeWX.
 """
 
-# from __future__ import with_statement
+# Python imports
 import Queue
 import json
 import syslog
 import threading
 import time
-from urllib import urlencode
 import urllib2
 
-import weewx.drivers
+from urllib import urlencode
+
+# weeWX imports
 import weeutil
+
+import weewx.drivers
+import weewx.wxformulas
 
 DRIVER_NAME = 'Bloomsky'
 DRIVER_VERSION = "0.1.0"
@@ -246,6 +250,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                                                                obfuscated))
         logdbg('max tries is %d, retry wait time is %d seconds' % (max_tries,
                                                                    retry_wait))
+        self.last_rain = None
         # create an ApiClient object to intrerract with the Bloomsky API
         self.collector = ApiClient(api_key,
                                    poll_interval=poll_interval,
@@ -295,6 +300,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         The Collector provides Bloomsky API reponse in the form of a dict that
         may contain nested dicts of data. Fist map the Bloomsky data to a flat
         weeWX data packet then add a packet timestamp and unit system fields.
+        Finally calculate rain since last packet.
 
         Input:
             data: Bloomsky API response in dict format
@@ -310,6 +316,27 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         # we ask the Bloomsky API data for international units which gives us
         # data conforming to the METRICWX unit system
         packet['usUnits'] = weewx.METRICWX
+        # Bloomsky reports 2 rainfall fields, RainDaily and 24hRain; the
+        # rainfall since midnight and the rainfall in the last 24 hours
+        # respectively. Therefore we need to calculate the incremental rain
+        # since the last packet using the RainDaily field (which was translated
+        # to the weeWX dailyRain field). We will see a decrement at midnight
+        # when the counter is reset, this may cause issues if it is raining at
+        # the time but there is little that can be done.
+        if 'rainDaily' in packet:
+            # get the rain so far today
+            total = packet['rainDaily']
+            # have we seen a daily rain reset?
+            if (total is not None and self.last_rain is not None
+                and total < self.last_rain):
+                # yes we have, just log it
+                loginf("dailyRain decrement ignored:"
+                       " new: %s old: %s" % (total, self.last_rain))
+            # calculate the rainfall since the last packet
+            packet['rain'] = weewx.wxformulas.calculate_rain(total,
+                                                             self.last_rain)
+            # adjust our last rain total
+            self.last_rain = total
         return packet
 
     @staticmethod
