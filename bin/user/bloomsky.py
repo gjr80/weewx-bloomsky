@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.1.0                                    Date: 25June 2017
+# Version: 0.1.0                                    Date: 25 June 2017
 #
 # Revision History
 #  25 June 2017         v0.1.0  - initial release
