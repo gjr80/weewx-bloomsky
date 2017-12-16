@@ -271,6 +271,30 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
     def hardware_name(self):
         return DRIVER_NAME
 
+    @property
+    def ids(self):
+        """Return the Bloomsky device IDs."""
+
+        raw_data = None
+        # loop until we get some raw data
+        while raw_data is None:
+            # wrap in try..excpet so we can catch the empty queue error
+            try:
+                # get any day from the collector queue
+                raw_data = self.collector.queue.get(True, 10)
+            except Queue.Empty:
+                # there was nothing in the queue so continue
+                pass
+        # the keys to raw_data keys are the device IDs that were found, try to
+        # return a list of the keys, b eprepared to catch the case where
+        # raw_data is not a dict
+        try:
+            # return the list of keys
+            return raw_data.keys()
+        except AttributeError:
+            # for some reason the raw_data is not a dict so return None
+            return None
+
     def genLoopPackets(self):
         """Wait for Bloomsky API from the ApiClient and yield a loop packets.
 
@@ -394,7 +418,7 @@ class ApiClient(Collector):
     API_URL = 'https://api.bloomsky.com/api/skydata/'
 
     # Data fields contained in the base API response
-    BASE_ITEMS = ['DeviceID', 'LAT', 'LON', 'ALT', 'UTC', 'DST', 'Searchable',
+    BASE_ITEMS = ['LAT', 'LON', 'ALT', 'UTC', 'DST', 'Searchable',
                   'RegisterTime', 'CityName', 'StreetName', 'FullAddress',
                   'DeviceName', 'BoundedPoint', 'NumOfFollowers', 'VideoList',
                   'VideoList_C', 'NumOfFavorites', 'PreviewImageList'
@@ -506,28 +530,32 @@ class ApiClient(Collector):
         """
 
         data_dict = dict()
-        for item in ApiClient.BASE_ITEMS:
-            if item in data[0]:
-                data_dict[item] = data[0][item]
-        if 'Data' in data[0]:
-            data_dict['Data'] = dict()
-            for item in ApiClient.DATA_ITEMS:
-                if item in data[0]['Data']:
-                    data_dict['Data'][item] = data[0]['Data'][item]
-        if 'Point' in data[0]:
-            data_dict['Point'] = dict()
-            for item in ApiClient.POINT_ITEMS:
-                if item in data[0]['Point']:
-                    data_dict['Point'][item] = data[0]['Point'][item]
-        if 'Storm' in data[0]:
-            data_dict['Storm'] = dict()
-            for item in ApiClient.STORM_ITEMS:
-                if item in data[0]['Storm']:
-                    data_dict['Storm'][item] = data[0]['Storm'][item]
-        # perform any manipulation/translation of the API response data (eg if
-        # no Storm device UV will be 9999, weeWX expects so UV field or data is
-        # no sensor so delete the UV entry)
-        data_dict.update(ApiClient.translate_data(data_dict, ApiClient.TRANSLATIONS))
+        for id in data:
+            device_dict = dict()
+            for item in ApiClient.BASE_ITEMS:
+                if item in id:
+                    device_dict[item] = id[item]
+            if 'Data' in id:
+                device_dict['Data'] = dict()
+                for item in ApiClient.DATA_ITEMS:
+                    if item in id['Data']:
+                        device_dict['Data'][item] = id['Data'][item]
+            if 'Point' in id:
+                device_dict['Point'] = dict()
+                for item in ApiClient.POINT_ITEMS:
+                    if item in id['Point']:
+                        device_dict['Point'][item] = id['Point'][item]
+            if 'Storm' in id:
+                device_dict['Storm'] = dict()
+                for item in ApiClient.STORM_ITEMS:
+                    if item in id['Storm']:
+                        device_dict['Storm'][item] = id['Storm'][item]
+            # perform any manipulation/translation of the API response data
+            # (eg if no Storm device UV will be 9999, weeWX expects so UV field
+            # or data is no sensor so delete the UV entry)
+            device_dict.update(ApiClient.translate_data(device_dict,
+                                                        ApiClient.TRANSLATIONS))
+            data_dict[id['DeviceID']] = device_dict
         return data_dict
 
     @staticmethod
@@ -729,6 +757,8 @@ if __name__ == "__main__":
                           help='Bloomsky API key')
         parser.add_option('--get-json-data', dest='jdata', action='store_true',
                           help='get Bloomsky API json response')
+        parser.add_option('--get-deviceids', dest='get_ids', action='store_true',
+                          help='get Bloomsky device IDs associated with an API key')
         (opts, args) = parser.parse_args()
 
         # if --debug raise our log level
@@ -740,6 +770,10 @@ if __name__ == "__main__":
             print "%s driver version: %s" % (DRIVER_NAME, DRIVER_VERSION)
             exit(0)
 
+        # get device IDs
+        if opts.get_ids:
+            get_ids(opts.api_key)
+
         # run the driver
         if opts.run_driver:
             run_driver(opts.api_key)
@@ -747,6 +781,23 @@ if __name__ == "__main__":
         # get Bloomsky API JSON response
         if opts.jdata:
             get_json_data(opts.api_key)
+
+    def get_ids(api_key):
+        """Get Bloomsky device IDs associated with an API key."""
+
+        import weeutil.weeutil
+
+        # get a BloomskyDriver object
+        driver = BloomskyDriver(api_key=api_key)
+        ids = driver.ids
+        if len(ids) > 1:
+            print "Found Bloomsky device IDs: %s" % ', '.join(ids)
+        elif len(ids) == 1:
+            print "Found Bloomsky device ID: %s" % ', '.join(ids)
+        else:
+            print "No Bloomsky device IDS found"
+        driver.closePort()
+        exit(0)
 
     def run_driver(api_key):
         """Run the Bloomsky driver."""
