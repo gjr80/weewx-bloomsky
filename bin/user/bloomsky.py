@@ -151,6 +151,7 @@ import urllib2
 from urllib import urlencode
 
 # weeWX imports
+import weecfg
 import weeutil
 
 import weewx.drivers
@@ -897,6 +898,8 @@ if __name__ == "__main__":
         parser = optparse.OptionParser(usage=usage)
         parser.add_option('--version', dest='version', action='store_true',
                           help='display Bloomsky driver version number')
+        parser.add_option('--config', dest='config_path', metavar='CONFIG_FILE',
+                          help="Use configuration file CONFIG_FILE.")
         parser.add_option('--debug', dest='debug', action='store_true',
                           help='display diagnostic information while running')
         parser.add_option('--run-driver', dest='run_driver', action='store_true',
@@ -918,38 +921,33 @@ if __name__ == "__main__":
             print "%s driver version: %s" % (DRIVER_NAME, DRIVER_VERSION)
             exit(0)
 
+        # get config_dict to use
+        config_path, config_dict = weecfg.read_config(opts.config_path, args)
+        print "Using configuration file %s" % config_path
+        stn_dict = config_dict.get('Bloomsky',{})
+
+        # do we have a specific API key to use
+        if opts.api_key:
+            stn_dict['api_key'] = opts.api_key
+            print "Using Bloomsky API key %s" % opts.api_key
+
         # display device IDs
         if opts.get_ids:
-            if opts.api_key:
-                get_ids(opts.api_key)
-            else:
-                print "Bloomsky API key required. Specify API key with --api_key option."
-                print "Exiting."
-                exit(1)
+            get_ids(stn_dict)
 
         # run the driver
         if opts.run_driver:
-            if opts.api_key:
-                run_driver(opts.api_key)
-            else:
-                print "Bloomsky API key required. Specify API key with --api_key option."
-                print "Exiting."
-                exit(1)
+            run_driver(stn_dict)
 
         # display Bloomsky API JSON response
         if opts.jdata:
-            if opts.api_key:
-                get_json_data(opts.api_key)
-            else:
-                print "Bloomsky API key required. Specify API key with --api_key option."
-                print "Exiting."
-                exit(1)
+            get_json_data(stn_dict)
 
-    def get_ids(api_key):
+    def get_ids(stn_dict):
         """Display Bloomsky device IDs associated with an API key."""
 
         # get a BloomskyDriver object
-        driver = BloomskyDriver(api_key=api_key)
+        driver = BloomskyDriver(**stn_dict)
         ids = driver.ids
         if len(ids) > 1:
             print "Found Bloomsky device IDs: %s" % ', '.join(ids)
@@ -960,16 +958,15 @@ if __name__ == "__main__":
         driver.closePort()
         exit(0)
 
-    def run_driver(api_key):
+    def run_driver(stn_dict):
         """Run the Bloomsky driver."""
 
         import weeutil.weeutil
 
-        driver = None
         # wrap in a try..except so we can pickup a keyboard interrupt
         try:
             # get a BloomskyDriver object
-            driver = BloomskyDriver(api_key=api_key)
+            driver = BloomskyDriver(**stn_dict)
             # continuously get loop packets and print them to screen
             for pkt in driver.genLoopPackets():
                 print weeutil.weeutil.timestamp_to_string(pkt['dateTime']), pkt
@@ -977,14 +974,24 @@ if __name__ == "__main__":
             # we have a keyboard interrupt so shut down
             driver.closePort()
 
-    def get_json_data(api_key):
+    def get_json_data(stn_dict):
         """Obtain Bloomsky API response and display in JSON format."""
 
-        # get an ApiClient object
-        api_client = ApiClient(api_key=api_key)
-        # get the JSON response
-        raw_data = api_client.sd.get_data()
-        # display the JSON response on screen
-        print json.dumps(raw_data, sort_keys=True, indent=2)
+        # extract the API key
+        api_key = stn_dict.get('api_key')
+        # if we have an API key then get the data otherwise exit after
+        # informing the user about the problem
+        if api_key:
+            # get an ApiClient object
+            api_client = ApiClient(api_key=api_key)
+            # get the JSON response
+            raw_data = api_client.sd.get_data()
+            # display the JSON response on screen
+            print json.dumps(raw_data, sort_keys=True, indent=2)
+        else:
+            print "Bloomsky API key required."
+            print "Specify API key in configuration file under [Bloomsky] or use --api_key option."
+            print "Exiting."
+            exit(1)
 
     main()
