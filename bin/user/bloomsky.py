@@ -28,6 +28,7 @@
 #
 """A weeWX driver for the Bloomsky family of personal weather devices.
 
+
 To use this driver:
 
 1.  Put this file in $BIN_ROOT/user.
@@ -40,63 +41,15 @@ To use this driver:
     # Bloomsky API key obtained from dashboard.bloomsky.com
     api_key = INSERT_API_KEY_HERE
 
-    # Bloomsky claim data is updated from the station every 5-8 minutes.
     # How often in seconds the driver will poll the Bloomsky API. Default is
-    # 60 seconds
+    # 60 seconds. Bloomsky claim data is updated from the station every
+    # 5-8 minutes.
     poll_interval = 60
-
-    # Number of times to try to get a response from the Bloomsky API before
-    # aborting the attempt. Default is 3.
-    max_tries = 3
-
-    # Time to wait in seconds between retries. Default is 10 seconds.
-    retry_wait = 10
-
-    # Define a mapping to map Bloomsky API fields to weeWX fields.
-    #
-    # Format is weeWX_field = Bloomsky_API_field
-    #
-    # where:
-    #   weeWX_field is a weeWX field name to be included in the generated loop
-    #       packet
-    #   Bloomsky_API_field is a Bloomsky API JSON response field name
-    #
-    #   Note: WeeWX field names will be used to populate the generated loop
-    #         packets. Fields will only be saved to database if the field name
-    #         is included in the in-use datbase schema.
-    #
-    #   Child groups in the JSON response are designated by a [[[ ]]] stanza,
-    #   eg [[[Data]]].
-    #
-    [[sensor_map]]
-        deviceID = DeviceID
-        deviceName = DeviceName
-        [[[Data]]]
-            outTemp = Temperature
-            txBatteryStatus = Voltage
-            UV = UVIndex
-            outHumidity = Humidity
-            imageURL = ImageURL
-            deviceType = DeviceType
-            night = Night
-            imageTimestamp = ImageTS
-        [[[Point]]]
-            inTemp = Temperature
-            inHumidity = Humidity
-        [[[Storm]]]
-            rainRate = RainRate
-            windSpeed = SustainedWindSpeed
-            windDir = WindDirection
-            windGust = WindGust
-            dailyRain = RainDaily
-
-    # The driver itself
-    driver = user.bloomsky
 
 3.  Add the following stanza to weewx.conf:
 
     Note: If an [Accumulator] stanza already exists in weewx.conf just add the
-          child settings.
+          child [[]] settings.
 
 [Accumulator]
     [[deviceID]]
@@ -116,23 +69,52 @@ To use this driver:
 
     station_type = Bloomsky
 
-5.  Before running weeWX with the Bloomsky driver you may wish to run the
-driver from the command line to ensure correct operation. To run the driver
-from the command line enter one of the the following commands depending on
-your weeWX installation type:
+5.  If weeWX is running stop then start weeWX otherwise start weeWX.
 
-    setup.py install:
-    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py --run-driver --api-key=INSERT_API_KEY
+6.  Confirm operation via the log. WeeWX should download data from the Bloomsky
+site every poll_interval seconds and weeWX should generate an archive record
+every archive period. What observational data is saved to archive will depend
+on the database schema in use, as an example the default schema should see
+outTemp, pressure and outHumidity data being saved to archive when using Sky or
+Sky2 device. A storm device should see rain, rainRate, windSpeed, windDir and
+windGust being saved to archive.
 
-    or
 
-    any other install type:
-    $ PYTHONPATH=/usr/share/weewx python /usr/share/weewx/user/bloomsky.py --run-driver --api-key=INSERT_API_KEY
+Standalone use
 
-    This should result in loop packets being displayed on the terminal windows
-    every 60 seconds.
+The driver can be used in standalone mode for testing or development without
+the overheads of a running weeWX instance. To run the driver in standalone
+mode:
 
-6.  If weeWX is running stop then start weeWX otehrwise start weeWX.
+1.  Put this file in $BIN_ROOT/user.
+
+2.  Depending on how weeWX was installed use one of the following commands:
+
+    -   setup.py install:
+
+        $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py
+
+    -   any other weeWX install:
+
+        $ PYTHONPATH=/usr/share/weewx python /usr/share/weewx/user/bloomsky.py
+
+    Note: The driver can be run wihtout a [Bloomsky] stanza in weewx.conf but
+          the user will need to provide a   Bloomsky API key on the command
+          line and only the default sensor mapping will be available. A custom
+          sensor mapping can be used when running in standalone mode by
+          including a [[sensor_map]] stanza under thew weewx.conf [Bloomsky]
+          stanza.
+
+
+Support for Multiple Device IDs
+
+1.  In the case of Bloomsky accounts that have multiple device IDs (as distinct
+from multiple devices) a default install will result in data being obtained and
+used from the first found device ID. Other device IDs are ignored. This driver
+can use data from multiple device IDs by defining a sensor map in weewx.conf
+under [Bloomsky]. Refer to the Bloomsky driver User's Guide
+(https://github.com/gjr80/weewx-bloomsky/wiki/User's-Guide).
+
 
 Known Limitations
 
@@ -229,8 +211,7 @@ class BloomskyConfEditor(weewx.drivers.AbstractConfEditor):
 
 
 class BloomskyDriver(weewx.drivers.AbstractDevice):
-    """
-    """
+    """Driver for obtaining data from the Bloomsky API."""
 
     # Sane default map from Bloomsky API field names to weeWX db schema names
     # that will work in most cases (ie single Sky and/or Storm). Accounts with
@@ -995,3 +976,4 @@ if __name__ == "__main__":
             exit(1)
 
     main()
+
