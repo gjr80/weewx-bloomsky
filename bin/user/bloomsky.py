@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.2.0                                    Date: ?? January 2018
+# Version: 0.2.0rc1                                 Date: ?? January 2018
 #
 # Revision History
 #   ?? June 2017         v0.2.0
@@ -140,7 +140,7 @@ import weewx.drivers
 import weewx.wxformulas
 
 DRIVER_NAME = 'Bloomsky'
-DRIVER_VERSION = "0.2.0"
+DRIVER_VERSION = "0.2.0rc1"
 
 
 def logmsg(level, msg):
@@ -242,7 +242,8 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         loginf('driver version is %s' % DRIVER_VERSION)
 
         # get the sensor map
-        self.sensor_map = stn_dict.get('sensor_map', BloomskyDriver.DEFAULT_SENSOR_MAP)
+        self.sensor_map = stn_dict.get('sensor_map',
+                                       BloomskyDriver.DEFAULT_SENSOR_MAP)
         loginf('sensor map is %s' % self.sensor_map)
 
         # number of time to try and get a response from the Bloomsky API
@@ -356,27 +357,27 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             if value:
                 packet[s] = value
 
-        # # Bloomsky reports 2 rainfall fields, RainDaily and 24hRain; the
-        # # rainfall since midnight and the rainfall in the last 24 hours
-        # # respectively. Therefore we need to calculate the incremental rain
-        # # since the last packet using the RainDaily field (which was translated
-        # # to the weeWX dailyRain field). We will see a decrement at midnight
-        # # when the counter is reset, this may cause issues if it is raining at
-        # # the time but there is little that can be done.
-        # if 'rainDaily' in packet:
-            # # get the rain so far today
-            # total = packet['rainDaily']
-            # # have we seen a daily rain reset?
-            # if (total is not None and self.last_rain is not None
-                # and total < self.last_rain):
-                # # yes we have, just log it
-                # loginf("dailyRain decrement ignored:"
-                       # " new: %s old: %s" % (total, self.last_rain))
-            # # calculate the rainfall since the last packet
-            # packet['rain'] = weewx.wxformulas.calculate_rain(total,
-                                                             # self.last_rain)
-            # # adjust our last rain total
-            # self.last_rain = total
+        # Bloomsky reports 2 rainfall fields, RainDaily and 24hRain; the
+        # rainfall since midnight and the rainfall in the last 24 hours
+        # respectively. Therefore we need to calculate the incremental rain
+        # since the last packet using the RainDaily field (which was translated
+        # to the weeWX dailyRain field). We will see a decrement at midnight
+        # when the counter is reset, this may cause issues if it is raining at
+        # the time but there is little that can be done.
+        if 'rainDaily' in packet:
+            # get the rain so far today
+            total = packet['rainDaily']
+            # have we seen a daily rain reset?
+            if (total is not None and self.last_rain is not None
+                and total < self.last_rain):
+                # yes we have, just log it
+                loginf("dailyRain decrement ignored: "
+                       "new: %s old: %s" % (total, self.last_rain))
+            # calculate the rainfall since the last packet
+            packet['rain'] = weewx.wxformulas.calculate_rain(total,
+                                                             self.last_rain)
+            # adjust our last rain total
+            self.last_rain = total
         return
 
     @staticmethod
@@ -521,9 +522,7 @@ class Collector(object):
 
 
 class ApiClient(Collector):
-    """Poll the bloomsky API for data and put the data in the queue.
-
-    """
+    """Poll the bloomsky API for data and put the data in the queue."""
 
     # endpoint for the Bloomsky API GET request
     API_URL = 'https://api.bloomsky.com/api/skydata/'
@@ -840,10 +839,10 @@ class ApiClient(Collector):
         data = urlencode(params)
         # obtain an obfuscated copy of the API key being used for use when
         # logging
-        obfuscated = dict(headers)
-        if 'Authorization' in obfuscated:
-            obfuscated['Authorization'] = ''.join(("....", obfuscated['Authorization'][-4:]))
-        logdbg("url: %s data: %s hdr: %s" % (url, params, obfuscated))
+        obf = dict(headers)
+        if 'Authorization' in obf:
+            obf['Authorization'] = ''.join(("....", obf['Authorization'][-4:]))
+        logdbg("url: %s data: %s hdr: %s" % (url, params, obf))
         # A urllib2.Request that includes a 'data' parameter value will be sent
         # as a POST request but the Bloomsky API requires a GET request. So to
         # send as a GET request with data just append '?' and the 'data' to the
@@ -861,14 +860,16 @@ class ApiClient(Collector):
         return resp_json
 
 
-# To test this driver, use one of the following commands (depending on your
-# weeWX install) along with the required command line option(s):
+# To use this driver in standalone mode for testing or development, use one of
+# the following commands (depending on your weeWX install):
 #
 #   $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py
 #
 #   or
 #
 #   $ PYTHONPATH=/usr/share/weewx python /usr/share/weewx/user/bloomsky.py
+#
+#   The above commands will display details of available command line options.
 
 if __name__ == "__main__":
     usage = """%prog [options] [--help]"""
