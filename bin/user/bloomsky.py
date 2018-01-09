@@ -18,10 +18,10 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.2.0rc1                                 Date: ?? January 2018
+# Version: 0.2.0rc2                                 Date: ?? January 2018
 #
 # Revision History
-#   ?? June 2017         v0.2.0
+#   ?? January 2018      v0.2.0
 #       - now supports multiple devices
 #   25 June 2017         v0.1.0
 #       - initial release
@@ -140,7 +140,7 @@ import weewx.drivers
 import weewx.wxformulas
 
 DRIVER_NAME = 'Bloomsky'
-DRIVER_VERSION = "0.2.0rc1"
+DRIVER_VERSION = "0.2.0rc2"
 
 
 def logmsg(level, msg):
@@ -633,7 +633,7 @@ class ApiClient(Collector):
         resulting dict.
 
         Input:
-            data: JSON object containing the API reponse
+            data: JSON object containing the API response
 
         Returns:
             A dict containing the extracted and translated data. Dict may
@@ -679,7 +679,7 @@ class ApiClient(Collector):
             # any fields in the child dict
             if hasattr(value, 'keys'):
                 if key in data:
-                    data.update(ApiClient.translate_data(data[key], value))
+                    data[key].update(ApiClient.translate_data(data[key], value))
             elif key in data:
                 # The key is not a dict and the value contains the method we
                 # must call for the translation. Obtain an object pointing to
