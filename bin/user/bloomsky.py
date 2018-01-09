@@ -236,7 +236,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                           'windDir':         '*.Storm.WindDirection',
                           'windGust':        '*.Storm.WindGust',
                           'rainDaily':       '*.Storm.RainDaily'
-                         }
+                          }
 
     def __init__(self, **stn_dict):
         loginf('driver version is %s' % DRIVER_VERSION)
@@ -325,7 +325,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                 # create a loop packet and initialise with dateTime and usUnits
                 packet = {'dateTime': int(time.time() + 0.5),
                           'usUnits':  weewx.METRICWX
-                         }
+                          }
                 self.map_to_fields(packet, raw_data)
                 # log the packet but only if debug>=2
                 logdbg2('Packet: %s' % packet)
@@ -369,7 +369,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             total = packet['rainDaily']
             # have we seen a daily rain reset?
             if (total is not None and self.last_rain is not None
-                and total < self.last_rain):
+                    and total < self.last_rain):
                 # yes we have, just log it
                 loginf("dailyRain decrement ignored: "
                        "new: %s old: %s" % (total, self.last_rain))
@@ -694,7 +694,7 @@ class ApiClient(Collector):
         API provides voltage in mV, weeWX uses V.
 
         Inputs:
-            data: Dict containing the translated API reponse
+            data: Dict containing the translated API response
             key:  Key to the dict of the field concerned
         """
 
@@ -715,7 +715,7 @@ class ApiClient(Collector):
         there to be no UV field if no UV sensor exists.
 
         Inputs:
-            data: Dict containing the translated API reponse
+            data: Dict containing the translated API response
             key:  Key to the dict of the field concerned
             not_present: API response field 'UVField' value if no Storm is
                          present, default is 9999
@@ -735,7 +735,7 @@ class ApiClient(Collector):
         exists.
 
         Inputs:
-            data: Dict containing the translated API reponse
+            data: Dict containing the translated API response
             key:  Key to the dict of the field concerned
             not_present: API response field 'Luminance' value if no Storm is
                          present, default is 9999
@@ -814,7 +814,7 @@ class ApiClient(Collector):
                 params['unit'] = units
             # make the request and get the returned data
             resp_json = ApiClient.get_request(ApiClient.API_URL,
-                                               params, headers)
+                                              params, headers)
             self._last_update = int(time.time())
             return resp_json
 
@@ -847,7 +847,7 @@ class ApiClient(Collector):
         # as a POST request but the Bloomsky API requires a GET request. So to
         # send as a GET request with data just append '?' and the 'data' to the
         # URL then create the request with just url and headers parameters.
-        _url = ''.join((url,'?', data))
+        _url = ''.join((url, '?', data))
         # create a Request object
         req = urllib2.Request(url=_url, headers=headers)
         # submit the request
@@ -906,7 +906,7 @@ if __name__ == "__main__":
         # get config_dict to use
         config_path, config_dict = weecfg.read_config(opts.config_path, args)
         print "Using configuration file %s" % config_path
-        stn_dict = config_dict.get('Bloomsky',{})
+        stn_dict = config_dict.get('Bloomsky', {})
 
         # do we have a specific API key to use
         if opts.api_key:
@@ -977,4 +977,3 @@ if __name__ == "__main__":
             exit(1)
 
     main()
-
