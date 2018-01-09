@@ -11,10 +11,14 @@
 #
 #                       Installer for Bloomsky Driver
 #
-# Version: 0.1.0                                        Date: 25 June 2017
+# Version: 0.2.0rc2                                     Date: 9 January 2018
 #
 # Revision History
-#   25 June 2017         v0.1
+#   9 January 2018      v0.2.0rc2
+#       - added ability to support multiple device IDs
+#       - now supports user defined sensor map
+#       - default poll interval now 60 seconds not 15 seconds
+#   25 June 2017        v0.1.0
 #       - initial implementation
 #
 
@@ -24,7 +28,7 @@ from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
 REQUIRED_VERSION = "3.7.0"
-BLOOMSKY_VERSION = "0.1.0"
+BLOOMSKY_VERSION = "0.2.0rc2"
 
 
 def loader():
@@ -48,7 +52,7 @@ class BloomskyInstaller(ExtensionInstaller):
             config={
                 'Bloomsky': {
                     'api_key': 'INSERT_API_KEY_HERE',
-                    'poll_interval': 15,
+                    'poll_interval': 60,
                     'driver': 'user.bloomsky'
                 },
                 'Accumulator': {

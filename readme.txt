@@ -17,7 +17,7 @@ a directory that may be different from system to system. The following symbolic
 names are used below:
 
 -   $DOWNLOAD_ROOT. The path to the directory containing the downloaded
-    Realtime gauge-data extension.
+    Bloomsky driver extension.
 
 -   $BIN_ROOT. The path to the directory where weeWX executables are located.
     This directory varies depending on weeWX installation method. Refer to
@@ -29,7 +29,7 @@ names are used below:
 releases page (https://github.com/gjr80/weewx-bloomsky/releases) into
 a directory accessible from the weeWX machine.
 
-    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-bloomsky/releases/download/v0.1.0/bloomsky-0.1.0.tar.gz
+    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-bloomsky/releases/download/v0.2.0rc2/bloomsky-0.2.0rc2.tar.gz
 
 	where $DOWNLOAD_ROOT is the path to the directory where the Bloomsky driver
     data extension is to be downloaded.
@@ -45,15 +45,15 @@ a directory accessible from the weeWX machine.
 3.  Install the Bloomsky driver extension downloaded at step 1 using the
 *wee_extension* utility:
 
-    $ wee_extension --install=$DOWNLOAD_ROOT/bloomsky-0.1.0.tar.gz
+    $ wee_extension --install=$DOWNLOAD_ROOT/bloomsky-0.2.0rc2.tar.gz
 
     This will result in output similar to the following:
 
-        Request to install '/var/tmp/bloomsky-0.1.0.tar.gz'
-        Extracting from tar archive /var/tmp/bloomsky-0.1.0.tar.gz
+        Request to install '/var/tmp/bloomsky-0.2.0rc2.tar.gz'
+        Extracting from tar archive /var/tmp/bloomsky-0.2.0.tar.gz
         Saving installer file to /home/weewx/bin/user/installer/Bloomsky
         Saved configuration dictionary. Backup copy at /home/weewx/weewx.conf.20161123124410
-        Finished installing extension '/var/tmp/bloomsky-0.1.0.tar.gz'
+        Finished installing extension '/var/tmp/bloomsky-0.2.0rc2.tar.gz'
 
 4.  Select and configure the driver:
 
@@ -98,14 +98,14 @@ Manual installation
 releases page (https://github.com/gjr80/weewx-bloomsky/releases) into
 a directory accessible from the weeWX machine.
 
-    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-bloomsky/releases/download/v0.1.0/bloomsky-0.1.0.tar.gz
+    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-bloomsky/releases/download/v0.2.0/bloomsky-0.2.0rc2.tar.gz
 
 	where $DOWNLOAD_ROOT is the path to the directory where the Bloomsky driver
     data extension is to be downloaded.
 
 2.  Unpack the extension as follows:
 
-    $ tar xvfz bloomsky-0.1.0.tar.gz
+    $ tar xvfz bloomsky-0.2.0rc2.tar.gz
 
 3.  Copy the bloomsky.py file from within the resulting folder as follows:
 

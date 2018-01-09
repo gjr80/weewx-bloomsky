@@ -1,2 +1,6 @@
+v0.2.0rc2
+*   added ability to support multiple device IDs
+*   now supports user defined sensor map
+*   default poll interval now 60 seconds not 15 seconds
 v0.1.0
 *   initial release
