@@ -137,7 +137,6 @@ import weecfg
 import weeutil
 
 import weewx.drivers
-import weewx.wxformulas
 
 DRIVER_NAME = 'Bloomsky'
 DRIVER_VERSION = "0.2.0rc2"
@@ -237,6 +236,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                           'windGust':        '*.Storm.WindGust',
                           'rainDaily':       '*.Storm.RainDaily'
                           }
+    DEFAULT_DELTAS = {'rain': 'rainDaily'}
 
     def __init__(self, **stn_dict):
         loginf('driver version is %s' % DRIVER_VERSION)
@@ -245,6 +245,10 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         self.sensor_map = stn_dict.get('sensor_map',
                                        BloomskyDriver.DEFAULT_SENSOR_MAP)
         loginf('sensor map is %s' % self.sensor_map)
+
+        # get the deltas
+        self.deltas = stn_dict.get('deltas', BloomskyDriver.DEFAULT_DELTAS)
+        loginf('deltas is %s' % self.deltas)
 
         # number of time to try and get a response from the Bloomsky API
         max_tries = int(stn_dict.get('max_tries', 3))
@@ -260,6 +264,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                                                                obfuscated))
         logdbg('max tries is %d, retry wait time is %d seconds' % (max_tries,
                                                                    retry_wait))
+        self._counter_values = dict()
         self.last_rain = None
         # create an ApiClient object to interact with the Bloomsky API
         self.collector = ApiClient(api_key,
@@ -327,14 +332,37 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                           'usUnits':  weewx.METRICWX
                           }
                 self.map_to_fields(packet, raw_data)
-                # log the packet but only if debug>=2
-                logdbg2('Packet: %s' % packet)
                 # if we did get a packet then yield it for processing
                 if packet:
+                    self.calculate_rain(packet)
+                    # log the packet but only if debug>=2
+                    logdbg2('Packet: %s' % packet)
                     yield packet
             except Queue.Empty:
                 # there was nothing in the queue so continue
                 pass
+
+    def calculate_rain(self, packet):
+        """Calculate rainfall values for rain fields."""
+
+        for delta_field, src_field in self.deltas.iteritems():
+            if src_field in packet:
+                packet[delta_field] = self._calc_rain(src_field,
+                                                      packet[src_field],
+                                                      self._counter_values.get(src_field))
+                self._counter_values[src_field] = packet[src_field]
+
+    @staticmethod
+    def _calc_rain(src_field, new_total, old_total):
+        """Calculate rainfall given the current and previous totals."""
+
+        delta = None
+        if new_total is not None and old_total is not None:
+            if new_total >= old_total:
+                delta = new_total - old_total
+            else:
+                delta = new_total
+        return delta
 
     def map_to_fields(self, packet, raw_data):
         """Map Bloomsky raw data to weeWX packet fields.
@@ -354,30 +382,8 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             # found the returned value will be None
             value = self.get_sensor_value(raw_data, self.sensor_map[s])
             # if we have a value other than None add the field to the packet
-            if value:
+            if value is not None:
                 packet[s] = value
-
-        # Bloomsky reports 2 rainfall fields, RainDaily and 24hRain; the
-        # rainfall since midnight and the rainfall in the last 24 hours
-        # respectively. Therefore we need to calculate the incremental rain
-        # since the last packet using the RainDaily field (which was translated
-        # to the weeWX dailyRain field). We will see a decrement at midnight
-        # when the counter is reset, this may cause issues if it is raining at
-        # the time but there is little that can be done.
-        if 'rainDaily' in packet:
-            # get the rain so far today
-            total = packet['rainDaily']
-            # have we seen a daily rain reset?
-            if (total is not None and self.last_rain is not None
-                    and total < self.last_rain):
-                # yes we have, just log it
-                loginf("dailyRain decrement ignored: "
-                       "new: %s old: %s" % (total, self.last_rain))
-            # calculate the rainfall since the last packet
-            packet['rain'] = weewx.wxformulas.calculate_rain(total,
-                                                             self.last_rain)
-            # adjust our last rain total
-            self.last_rain = total
         return
 
     @staticmethod
