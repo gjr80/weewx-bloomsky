@@ -135,8 +135,11 @@ from urllib import urlencode
 # weeWX imports
 import weecfg
 import weeutil
+import weewx
 
 import weewx.drivers
+import weewx.engine
+import weewx.units
 
 DRIVER_NAME = 'Bloomsky'
 DRIVER_VERSION = "0.2.0rc2"
@@ -205,12 +208,12 @@ class BloomskyConfEditor(weewx.drivers.AbstractConfEditor):
 
 
 # ============================================================================
-#                           class BloomskyDriver
+#                              class Bloomsky
 # ============================================================================
 
 
-class BloomskyDriver(weewx.drivers.AbstractDevice):
-    """Driver for obtaining data from the Bloomsky API."""
+class Bloomsky(object):
+    """Base class for obtaining data from the Bloomsky API."""
 
     # Sane default map from Bloomsky API field names to weeWX db schema names
     # that will work in most cases (ie single Sky and/or Storm). Accounts with
@@ -238,53 +241,41 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                           }
     DEFAULT_DELTAS = {'rain': 'rainDaily'}
 
-    def __init__(self, **stn_dict):
-        loginf('driver version is %s' % DRIVER_VERSION)
+    def __init__(self, silent = False, **bloomsky_config_dict):
+        """Initialise and object of type Bloomsky."""
 
         # get the sensor map
-        self.sensor_map = stn_dict.get('sensor_map',
-                                       BloomskyDriver.DEFAULT_SENSOR_MAP)
-        loginf('sensor map is %s' % self.sensor_map)
+        self.sensor_map = bloomsky_config_dict.get('sensor_map',
+                                                   Bloomsky.DEFAULT_SENSOR_MAP)
 
         # get the deltas
-        self.deltas = stn_dict.get('deltas', BloomskyDriver.DEFAULT_DELTAS)
-        loginf('deltas is %s' % self.deltas)
+        self.deltas = bloomsky_config_dict.get('deltas',
+                                               Bloomsky.DEFAULT_DELTAS)
 
         # number of time to try and get a response from the Bloomsky API
-        max_tries = int(stn_dict.get('max_tries', 3))
+        self.max_tries = int(bloomsky_config_dict.get('max_tries', 3))
         # wait time in seconds between retries
-        retry_wait = int(stn_dict.get('retry_wait', 10))
+        self.retry_wait = int(bloomsky_config_dict.get('retry_wait', 10))
         # Bloomsky claim data is updated from the station every 5-8 minutes.
         # Set how often (in seconds) we should poll the API.
-        poll_interval = int(stn_dict.get('poll_interval', 120))
+        self.poll_interval = int(bloomsky_config_dict.get('poll_interval',
+                                                          120))
         # API key issued obtained from dashboard.bloomsky.com
-        api_key = stn_dict['api_key']
-        obfuscated = ''.join(('"....', api_key[-4:], '"'))
-        logdbg('poll interval is %d seconds, API key is %s' % (poll_interval,
-                                                               obfuscated))
-        logdbg('max tries is %d, retry wait time is %d seconds' % (max_tries,
-                                                                   retry_wait))
+        self.api_key = bloomsky_config_dict['api_key']
         self._counter_values = dict()
         self.last_rain = None
         # create an ApiClient object to interact with the Bloomsky API
-        self.collector = ApiClient(api_key,
-                                   poll_interval=poll_interval,
-                                   max_tries=max_tries,
-                                   retry_wait=retry_wait)
+        self.collector = ApiClient(self.api_key,
+                                   poll_interval=self.poll_interval,
+                                   max_tries=self.max_tries,
+                                   retry_wait=self.retry_wait,
+                                   silent = silent)
         # the ApiClient runs in its own thread so start the thread
         self.collector.startup()
 
-    def closePort(self):
-        """Shutdown the ApiClient object thread.
-
-        Override the base class closePort() method. We don't have a port to
-        close but rather we shut down the ApiClient object thread.
-        """
+    def shutdown(self):
+        """Shutdown the AppiClient thread."""
         self.collector.shutdown()
-
-    @property
-    def hardware_name(self):
-        return DRIVER_NAME
 
     @property
     def ids(self):
@@ -314,33 +305,6 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             except KeyError:
                 pass
         return ids
-
-    def genLoopPackets(self):
-        """Yield Bloomsky loop packets.
-
-        Run a continuous loop checking the ApiClient queue for data. When data
-        arrives map the raw data to a weeWX loop packet and yield the packet.
-        """
-
-        while True:
-            # wrap in a try to catch any instances where the queue is empty
-            try:
-                # get any day from the collector queue
-                raw_data = self.collector.queue.get(True, 10)
-                # create a loop packet and initialise with dateTime and usUnits
-                packet = {'dateTime': int(time.time() + 0.5),
-                          'usUnits':  weewx.METRICWX
-                          }
-                self.map_to_fields(packet, raw_data)
-                # if we did get a packet then yield it for processing
-                if packet:
-                    self.calculate_rain(packet)
-                    # log the packet but only if debug>=2
-                    logdbg2('Packet: %s' % packet)
-                    yield packet
-            except Queue.Empty:
-                # there was nothing in the queue so continue
-                pass
 
     def calculate_rain(self, packet):
         """Calculate rainfall values for rain fields."""
@@ -376,6 +340,8 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             data:   Bloomsky API response in list of dict format
         """
 
+###        loginf('map_to_fields: packet=%s' % (packet,))
+###        loginf('map_to_fields: raw_data=%s' % (raw_data,))
         # iterate over each of the sensors in the sensor map
         for s in self.sensor_map:
             # obtain the mapped sensor value from the raw data, if it can't be
@@ -384,10 +350,10 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             # if we have a value other than None add the field to the packet
             if value is not None:
                 packet[s] = value
+###        loginf('map_to_fields: post packet=%s' % (packet,))
         return
 
-    @staticmethod
-    def get_sensor_value(data, sensor_pattern):
+    def get_sensor_value(self, data, sensor_pattern):
         """Get a Bloomsky sensor value given a Bloomsky sensor mapping.
 
         Bloomsky API response is returned as a list of dicts with each dict
@@ -419,6 +385,8 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             None if no element found.
         """
 
+###        loginf('get_sensor_value: data=%s' % (data,))
+###        loginf('get_sensor_value: sensor_pattern=%s' % (sensor_pattern,))
         # initialise our response, assume nothing found to start with
         element = None
         # Need the device ID portion of the sensor pattern so we know when we
@@ -429,8 +397,8 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         for device in data:
             # do we have a device ID specifier or just a field specifier
             if len(parts) > 1:
-                if BloomskyDriver._match(parts[0], device['DeviceID']):
-                    element = BloomskyDriver._find_in_device(device, parts[1])
+                if self._match(parts[0], device['DeviceID']):
+                    element = self._find_in_device(device, parts[1])
                     if element:
                         return element
             else:
@@ -442,10 +410,10 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                 for (k, v) in device.iteritems():
                     if sensor_pattern == k and not hasattr(k, 'keys'):
                         element = v
+        loginf('get_sensor_value: element=%s' % (element,))
         return element
 
-    @staticmethod
-    def _find_in_device(data, sensor_pattern):
+    def _find_in_device(self, data, sensor_pattern):
         """Find a data element for a device ID given a partial sensor map.
 
         Recursively search the data dict for a key that matches the sensor
@@ -473,10 +441,10 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             for (k, v) in data.iteritems():
                 # iterate over the key, value pairs of our data to see if we
                 # have a match
-                if BloomskyDriver._match(k, parts[0]):
+                if self._match(k, parts[0]):
                     # we have a match so recursively call ourself to continue
                     # the search at the next 'level' down
-                    element = BloomskyDriver._find_in_device(v, parts[1])
+                    element = self._find_in_device(v, parts[1])
         else:
             # just a straight up field/sensor name
             for (k, v) in data.iteritems():
@@ -503,6 +471,143 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
 
         matches = fnmatch.filter([value], pattern)
         return True if matches else False
+
+
+# ============================================================================
+#                           class BloomskyDriver
+# ============================================================================
+
+
+class BloomskyDriver(weewx.drivers.AbstractDevice, Bloomsky):
+    """Driver for obtaining data from the Bloomsky API.
+
+       Note, uses multiple inheritance.
+    """
+
+    def __init__(self, **stn_dict):
+        # initialise our base class
+        Bloomsky.__init__(self, **stn_dict)
+
+        # log various info
+        # version number
+        loginf('driver version is %s' % DRIVER_VERSION)
+        # sensor map
+        loginf('sensor map is %s' % self.sensor_map)
+        # deltas
+        loginf('deltas is %s' % self.deltas)
+        # obfuscated API key
+        obfuscated = ''.join(('"....', self.api_key[-4:], '"'))
+        logdbg('poll interval is %d seconds, API key is %s' % (self.poll_interval,
+                                                               obfuscated))
+        logdbg('max tries is %d, retry wait time is %d seconds' % (self.max_tries,
+                                                                   self.retry_wait))
+
+    def closePort(self):
+        """Shutdown the ApiClient object thread.
+
+        Override the base class closePort() method. We don't have a port to
+        close but rather we shut down the ApiClient object thread.
+        """
+        self.shutdown()
+
+    @property
+    def hardware_name(self):
+        return DRIVER_NAME
+
+    def genLoopPackets(self):
+        """Yield Bloomsky loop packets.
+
+        Run a continuous loop checking the ApiClient queue for data. When data
+        arrives map the raw data to a weeWX loop packet and yield the packet.
+        """
+
+        while True:
+            # wrap in a try to catch any instances where the queue is empty
+            try:
+                # get any day from the collector queue
+                raw_data = self.collector.queue.get(True, 1)
+                # create a loop packet and initialise with dateTime and usUnits
+                packet = {'dateTime': int(time.time() + 0.5),
+                          'usUnits':  weewx.METRICWX
+                          }
+                self.map_to_fields(packet, raw_data)
+                # if we did get a packet then yield it for processing
+                if packet:
+                    self.calculate_rain(packet)
+                    # log the packet but only if debug>=2
+                    logdbg2('Packet: %s' % packet)
+                    yield packet
+            except Queue.Empty:
+                # there was nothing in the queue so continue
+                pass
+
+
+# ============================================================================
+#                           class BloomskyService
+# ============================================================================
+
+
+class BloomskyService(weewx.engine.StdService, Bloomsky):
+    """Service for obtaining data from the Bloomsky API.
+
+       Note, uses multiple inheritance.
+    """
+
+    def __init__(self, engine, config_dict):
+        # initialise our base classes
+        weewx.engine.StdService.__init__(self, engine, config_dict)
+        Bloomsky.__init__(self, **config_dict.get('BloomskyService', {}))
+
+        # log various info
+        # version number
+        loginf('service version is %s' % DRIVER_VERSION)
+        # sensor map
+        loginf('sensor map is %s' % self.sensor_map)
+        # deltas
+        loginf('deltas is %s' % self.deltas)
+        # obfuscated API key
+        obfuscated = ''.join(('"....', self.api_key[-4:], '"'))
+        logdbg('poll interval is %d seconds, API key is %s' % (self.poll_interval,
+                                                               obfuscated))
+        logdbg('max tries is %d, retry wait time is %d seconds' % (self.max_tries,
+                                                                   self.retry_wait))
+
+        # bind to new loop and new archive
+        self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
+        self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
+
+    def new_loop_packet(self, event):
+        """Called when a new LOOP packet has arrived."""
+
+        try:
+            # get any day from the collector queue
+            raw_data = self.collector.queue.get(True, 1)
+            # create a data dict and initialise usUnits to METRICWX
+            data_dict = {'usUnits':  weewx.METRICWX}
+            self.map_to_fields(data_dict, raw_data)
+            # we need to convert the data dict to the unit system of the loop
+            # packet
+            data_dict = weewx.units.to_std_sytem(data_dict,
+                                                 event.packet['usUnits'])
+            # Iterate over each obs field in the converted data dict and add to
+            # the loop packet. Don't add fields that already exist just log the
+            # occurrence .
+            for key, value in data_dict.iteritems():
+                if key != 'usUnits':
+                    if key not in event.packet:
+                        # add it
+                        event.packet[key] = value
+                    else:
+                        # already exists so log it
+                        logdbg('field %s already in loop packet' % key)
+        except Queue.Empty:
+            # there was nothing in the queue so continue
+            pass
+
+    def new_archive_record(self, event):
+        """Called when a new ARCHIVE record has arrived."""
+
+        pass
 
 
 # ============================================================================
@@ -568,7 +673,8 @@ class ApiClient(Collector):
                     'Storm': {'WindDirection': '_trans_wind_dir'}
                     }
 
-    def __init__(self, api_key, poll_interval=120, max_tries=3, retry_wait=10):
+    def __init__(self, api_key, poll_interval=120, max_tries=3, retry_wait=10,
+                 silent = False):
         """Initialise our class."""
 
         # the API key from dashboard.bloomsky.com
@@ -584,6 +690,8 @@ class ApiClient(Collector):
         self.sd = ApiClient.StationData(api_key)
         self._thread = None
         self._collect_data = False
+        # suppress output for certain operations
+        self.silent = silent
 
     def collect_data(self):
         """Loop forever waking periodically to see if it is time to quit."""
@@ -624,7 +732,8 @@ class ApiClient(Collector):
                            self._max_tries)
                 # reset the last poll ts
                 last_poll = now
-                logdbg('Next update in %s seconds' % self._poll_interval)
+                if not self.silent:
+                    logdbg('Next update in %s seconds' % self._poll_interval)
             # sleep and see if its time to poll again
             time.sleep(1)
 
@@ -888,10 +997,12 @@ if __name__ == "__main__":
                           help='display Bloomsky driver version number')
         parser.add_option('--config', dest='config_path', metavar='CONFIG_FILE',
                           help="Use configuration file CONFIG_FILE.")
-        parser.add_option('--debug', dest='debug', action='store_true',
+        parser.add_option('--debug', dest='debug', action='store', type='int',
                           help='display diagnostic information while running')
         parser.add_option('--run-driver', dest='run_driver', action='store_true',
                           metavar='RUN_DRIVER', help='run the Bloomsky driver')
+        parser.add_option('--run-service', dest='run_service', action='store_true',
+                          metavar='RUN_SERVICE', help='run the Bloomsky service')
         parser.add_option('--api-key', dest='api_key', metavar='API_KEY',
                           help='Bloomsky API key')
         parser.add_option('--get-json-data', dest='jdata', action='store_true',
@@ -901,8 +1012,9 @@ if __name__ == "__main__":
         (opts, args) = parser.parse_args()
 
         # if --debug raise our log level
-        if opts.debug:
+        if opts.debug > 0:
             syslog.setlogmask(syslog.LOG_UPTO(syslog.LOG_DEBUG))
+            weewx.debug = opts.debug
 
         # display driver version number
         if opts.version:
@@ -912,42 +1024,64 @@ if __name__ == "__main__":
         # get config_dict to use
         config_path, config_dict = weecfg.read_config(opts.config_path, args)
         print "Using configuration file %s" % config_path
-        stn_dict = config_dict.get('Bloomsky', {})
+        b_config_dict = config_dict.get('Bloomsky', {})
+        if opts.run_service or (opts.api_key is None and b_config_dict == {}):
+            b_config_dict = config_dict.get('BloomskyService', {})
 
         # do we have a specific API key to use
         if opts.api_key:
-            stn_dict['api_key'] = opts.api_key
+            b_config_dict['api_key'] = opts.api_key
             print "Using Bloomsky API key %s" % opts.api_key
 
         # display device IDs
         if opts.get_ids:
-            get_ids(stn_dict)
+            get_ids(b_config_dict)
 
         # run the driver
         if opts.run_driver:
-            run_driver(stn_dict)
+            run_driver(b_config_dict)
+
+        # run the service
+        if opts.run_service:
+            run_service(b_config_dict)
 
         # display Bloomsky API JSON response
         if opts.jdata:
-            get_json_data(stn_dict)
+            get_json_data(b_config_dict)
 
-    def get_ids(stn_dict):
+    def get_ids(b_config_dict):
         """Display Bloomsky device IDs associated with an API key."""
 
         # get a BloomskyDriver object
-        driver = BloomskyDriver(**stn_dict)
-        ids = driver.ids
+        bloomsky = Bloomsky(silent = True, **b_config_dict)
+        ids = bloomsky.ids
         if len(ids) > 1:
             print "Found Bloomsky device IDs: %s" % ', '.join(ids)
         elif len(ids) == 1:
             print "Found Bloomsky device ID: %s" % ', '.join(ids)
         else:
             print "No Bloomsky device IDS found"
-        driver.closePort()
+        bloomsky.shutdown()
         exit(0)
 
     def run_driver(stn_dict):
         """Run the Bloomsky driver."""
+
+        import weeutil.weeutil
+
+        # wrap in a try..except so we can pickup a keyboard interrupt
+        try:
+            # get a BloomskyDriver object
+            driver = BloomskyDriver(**stn_dict)
+            # continuously get loop packets and print them to screen
+            for pkt in driver.genLoopPackets():
+                print weeutil.weeutil.timestamp_to_string(pkt['dateTime']), pkt
+        except KeyboardInterrupt:
+            # we have a keyboard interrupt so shut down
+            driver.closePort()
+
+    def run_service(stn_dict):
+        """Run the Bloomsky service."""
 
         import weeutil.weeutil
 
