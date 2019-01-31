@@ -18,10 +18,14 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.1.0                                    Date: 25 June 2017
+# Version: 0.1.1                                    Date: 31 January 2019
 #
 # Revision History
-#  25 June 2017         v0.1.0  - initial release
+#  31 January 2019      v0.1.1
+#    - added missing barometer, luminance and raining fields to default sensor 
+#      map
+#  25 June 2017         v0.1.0  
+#    - initial release
 #
 """A weeWX driver for the Bloomsky family of personal weather devices.
 
@@ -73,9 +77,12 @@ To use this driver:
             txBatteryStatus = Voltage
             UV = UVIndex
             outHumidity = Humidity
+            barometer = Pressure
             imageURL = ImageURL
             deviceType = DeviceType
             night = Night
+            raining = Rain
+            luminance = Luminance
             imageTimestamp = ImageTS
         [[[Point]]]
             inTemp = Temperature
@@ -108,6 +115,8 @@ To use this driver:
         adder = noop
     [[imageTimestamp]]
         adder = noop
+    [[raining]]
+        adder = noop
 
 4.  In weewx.conf under [Station] set the station_type option as follows:
 
@@ -129,7 +138,7 @@ your weeWX installation type:
     This should result in loop packets being displayed on the terminal windows
     every 60 seconds.
 
-6.  If weeWX is running stop then start weeWX otehrwise start weeWX.
+6.  If weeWX is running stop then start weeWX otherwise start weeWX.
 """
 
 # Python imports
@@ -149,7 +158,7 @@ import weewx.drivers
 import weewx.wxformulas
 
 DRIVER_NAME = 'Bloomsky'
-DRIVER_VERSION = "0.1.0"
+DRIVER_VERSION = "0.1.1"
 
 
 def logmsg(level, msg):
@@ -219,6 +228,9 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                                          'outHumidity':     'Humidity',
                                          'imageURL':        'ImageURL',
                                          'deviceType':      'DeviceType',
+                                         'barometer':       'Pressure',
+                                         'luminance':       'Luminance',
+                                         'raining':         'Rain',
                                          'night':           'Night',
                                          'imageTimestamp':  'ImageTS'},
                           'Point':      {'inTemp':          'Temperature',
