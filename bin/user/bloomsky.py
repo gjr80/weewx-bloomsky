@@ -445,7 +445,7 @@ class ApiClient(Collector):
                     'Storm': {'WindDirection': '_trans_wind_dir'}
                     }
 
-    def __init__(self, api_key, poll_interval=120, max_tries=3, retry_wait=10):
+    def __init__(self, api_key, poll_interval=60, max_tries=3, retry_wait=10):
         """Initialise our class."""
 
         # the API key from dashboard.bloomsky.com

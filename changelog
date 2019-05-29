@@ -1,5 +1,6 @@
 v0.1.1
 *   added missing barometer/Pressure mapping to default sensor map
+*   changed default poll interval to 60 seconds (as advertised)
 *   revised driver comments
 v0.1.0
 *   initial release
