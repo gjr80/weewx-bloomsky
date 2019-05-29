@@ -1,33 +1,32 @@
 #!/usr/bin/python
-# bloomsky.py
-#
-# A weeWX driver for the Bloomsky family of personal weather devices.
-#
-# Copyright (C) 2017 Gary Roderick                  gjroderick<at>gmail.com
-#
-# This program is free software: you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
-#
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-# details.
-#
-# You should have received a copy of the GNU General Public License along with
-# this program.  If not, see http://www.gnu.org/licenses/.
-#
-# Version: 0.1.1                                    Date: 31 January 2019
-#
-# Revision History
-#  31 January 2019      v0.1.1
-#    - added missing barometer, luminance and raining fields to default sensor 
-#      map
-#  25 June 2017         v0.1.0  
-#    - initial release
-#
-"""A weeWX driver for the Bloomsky family of personal weather devices.
+"""
+bloomsky.py
+
+A WeeWX driver for the BloomSky family of personal weather devices.
+
+Copyright (C) 2017-19 Gary Roderick                 gjroderick<at>gmail.com
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see http://www.gnu.org/licenses/.
+
+Version: 0.1.1                                    Date: 29 May 2019
+
+Revision History
+    29 May 2019         v0.1.1
+        - added missing barometer, luminance and raining fields to default
+          sensor map
+    25 June 2017        v0.1.0
+        - initial release
+
 
 To use this driver:
 
@@ -36,35 +35,44 @@ To use this driver:
 2.  Add the following stanza to weewx.conf:
 
 [Bloomsky]
-    # This section is for the Bloomsky station
+    # This section is for the BloomSky station
 
-    # Bloomsky API key obtained from dashboard.bloomsky.com
+    # BloomSky API key obtained from dashboard.bloomsky.com
     api_key = INSERT_API_KEY_HERE
 
-    # Bloomsky claim data is updated from the station every 5-8 minutes.
-    # How often in seconds the driver will poll the Bloomsky API. Default is
+    # BloomSky claim data is updated from the station every 5-8 minutes.
+    # How often in seconds the driver will poll the BloomSky API. Default is
     # 60 seconds
     poll_interval = 60
 
-    # Number of times to try to get a response from the Bloomsky API before
+    # Number of times to try to get a response from the BloomSky API before
     # aborting the attempt. Default is 3.
     max_tries = 3
 
     # Time to wait in seconds between retries. Default is 10 seconds.
     retry_wait = 10
 
-    # Define a mapping to map Bloomsky API fields to weeWX fields.
+    # The driver itself
+    driver = user.bloomsky
+
+3.  The BloomSky driver uses a default sensor map to map BloomSky API fields to
+common WeeWX fields. If required this default sensor map can be overridden by
+adding a [[sensor_map]] stanza to the [Bloomsky] stanza in weewx.conf. To
+override the default sensor map add the following to the [Bloomsky]
+stanza in weewx,conf altering/removing/adding WeeWX field names as required:
+
+    # Define a mapping to map BloomSky API fields to WeeWX fields.
     #
-    # Format is weeWX_field = Bloomsky_API_field
+    # Format is weewx_field = bloomsky_api_field
     #
     # where:
-    #   weeWX_field is a weeWX field name to be included in the generated loop
+    #   weewx_field is a WeeWX field name to be included in the generated loop
     #       packet
-    #   Bloomsky_API_field is a Bloomsky API JSON response field name
+    #   bloomsky_api_field is a BloomSky API JSON response field name
     #
     #   Note: WeeWX field names will be used to populate the generated loop
     #         packets. Fields will only be saved to database if the field name
-    #         is included in the in-use datbase schema.
+    #         is included in the in-use database schema.
     #
     #   Child groups in the JSON response are designated by a [[[ ]]] stanza,
     #   eg [[[Data]]].
@@ -94,10 +102,7 @@ To use this driver:
             windGust = WindGust
             dailyRain = RainDaily
 
-    # The driver itself
-    driver = user.bloomsky
-
-3.  Add the following stanza to weewx.conf:
+4.  Add the following stanza to weewx.conf:
 
     Note: If an [Accumulator] stanza already exists in weewx.conf just add the
           child settings.
@@ -118,14 +123,14 @@ To use this driver:
     [[raining]]
         adder = noop
 
-4.  In weewx.conf under [Station] set the station_type option as follows:
+5.  In weewx.conf under [Station] set the station_type option as follows:
 
     station_type = Bloomsky
 
-5.  Before running weeWX with the Bloomsky driver you may wish to run the
-driver from the command line to ensure correct operation. To run the driver
-from the command line enter one of the the following commands depending on
-your weeWX installation type:
+6.  Before running WeeWX with the BloomSky driver you may wish to run the driver
+from the command line to ensure correct operation. To run the driver from the
+command line enter one of the the following commands depending on your WeeWX
+installation type:
 
     setup.py install:
     $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py --run-driver --api-key=INSERT_API_KEY
@@ -138,7 +143,7 @@ your weeWX installation type:
     This should result in loop packets being displayed on the terminal windows
     every 60 seconds.
 
-6.  If weeWX is running stop then start weeWX otherwise start weeWX.
+7.  If WeeWX is running stop then start WeeWX otherwise start WeeWX.
 """
 
 # Python imports
@@ -151,7 +156,7 @@ import urllib2
 
 from urllib import urlencode
 
-# weeWX imports
+# WeeWX imports
 import weeutil
 
 import weewx.drivers
@@ -201,9 +206,9 @@ class BloomskyConfEditor(weewx.drivers.AbstractConfEditor):
     def default_stanza(self):
         return """
 [Bloomsky]
-    # This section is for the Bloomsky station
+    # This section is for the BloomSky station
 
-    # Bloomsky API key obtained from dashboard.bloomsky.com
+    # BloomSky API key obtained from dashboard.bloomsky.com
     api_key = INSERT_API_KEY_HERE
 
     # The driver itself
@@ -218,8 +223,9 @@ class BloomskyConfEditor(weewx.drivers.AbstractConfEditor):
 
 
 class BloomskyDriver(weewx.drivers.AbstractDevice):
-    """ """
-    # map from Bloomsky API field names to weeWX db schema names
+    """BloomSky driver class."""
+
+    # map from BloomSky API field names to WeeWX db schema names
     DEFAULT_SENSOR_MAP = {'deviceID':   'DeviceID',
                           'deviceName': 'DeviceName',
                           'Data':       {'outTemp':         'Temperature',
@@ -248,11 +254,11 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         if 'sensor_map' in stn_dict:
             self.sensor_map.update(stn_dict['sensor_map'])
         loginf('sensor map is %s' % self.sensor_map)
-        # number of time to try and get a response from the Bloomsky API
+        # number of time to try and get a response from the BloomSky API
         max_tries = int(stn_dict.get('max_tries', 3))
         # wait time in seconds between retries
         retry_wait = int(stn_dict.get('retry_wait', 10))
-        # Bloomsky claim data is updated from the station every 5-8 minutes.
+        # BloomSky claim data is updated from the station every 5-8 minutes.
         # Set how often (in seconds) we should poll the API.
         poll_interval = int(stn_dict.get('poll_interval', 120))
         # API key issued obtained from dashboard.bloomsky.com
@@ -263,7 +269,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         logdbg('max tries is %d, retry wait time is %d seconds' % (max_tries,
                                                                    retry_wait))
         self.last_rain = None
-        # create an ApiClient object to intrerract with the Bloomsky API
+        # create an ApiClient object to interact with the BloomSky API
         self.collector = ApiClient(api_key,
                                    poll_interval=poll_interval,
                                    max_tries=max_tries,
@@ -284,10 +290,10 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         return DRIVER_NAME
 
     def genLoopPackets(self):
-        """Wait for Bloomsky API from the ApiClient and yield a loop packets.
+        """Wait for BloomSky API from the ApiClient and yield a loop packets.
 
         Run a continuous loop checking the ApiClient queue for data. When data
-        arrives map the raw data to a weeWX loop packet and yield the packet.
+        arrives map the raw data to a WeeWX loop packet and yield the packet.
         """
 
         while True:
@@ -307,32 +313,32 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                 pass
 
     def data_to_packet(self, data):
-        """Convert Bloomsky data to weeWX packet format.
+        """Convert BloomSky data to WeeWX packet format.
 
-        The Collector provides Bloomsky API reponse in the form of a dict that
-        may contain nested dicts of data. Fist map the Bloomsky data to a flat
-        weeWX data packet then add a packet timestamp and unit system fields.
+        The Collector provides BloomSky API response in the form of a dict that
+        may contain nested dicts of data. Fist map the BloomSky data to a flat
+        WeeWX data packet then add a packet timestamp and unit system fields.
         Finally calculate rain since last packet.
 
         Input:
-            data: Bloomsky API response in dict format
+            data: BloomSky API response in dict format
 
         Returns:
-            A weeWX loop packet
+            A WeeWX loop packet
         """
 
-        # map the Bloomsky API data to a weeWX loop packet
+        # map the BloomSky API data to a WeeWX loop packet
         packet = self._map_fields(data, self.sensor_map)
         # add dateTime and usUnits fields
         packet['dateTime'] = int(time.time() + 0.5)
-        # we ask the Bloomsky API data for international units which gives us
+        # we ask the BloomSky API data for international units which gives us
         # data conforming to the METRICWX unit system
         packet['usUnits'] = weewx.METRICWX
-        # Bloomsky reports 2 rainfall fields, RainDaily and 24hRain; the
+        # BloomSky reports 2 rainfall fields, RainDaily and 24hRain; the
         # rainfall since midnight and the rainfall in the last 24 hours
         # respectively. Therefore we need to calculate the incremental rain
         # since the last packet using the RainDaily field (which was translated
-        # to the weeWX dailyRain field). We will see a decrement at midnight
+        # to the WeeWX dailyRain field). We will see a decrement at midnight
         # when the counter is reset, this may cause issues if it is raining at
         # the time but there is little that can be done.
         if 'rainDaily' in packet:
@@ -340,7 +346,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             total = packet['rainDaily']
             # have we seen a daily rain reset?
             if (total is not None and self.last_rain is not None
-                and total < self.last_rain):
+                    and total < self.last_rain):
                 # yes we have, just log it
                 loginf("dailyRain decrement ignored:"
                        " new: %s old: %s" % (total, self.last_rain))
@@ -353,7 +359,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
 
     @staticmethod
     def _map_fields(data, map):
-        """Map Bloomsky API response fields to weeWX loop packet fields.
+        """Map BloomSky API response fields to WeeWX loop packet fields.
 
         Iterate over all all sensor map entries and if a field exists that
         matches the map entry then map the field to a packet dict. Some data
@@ -361,11 +367,11 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         method to map any child data fields.
 
         Input:
-            data: Bloomsky API response in dict format
+            data: BloomSky API response in dict format
             map: The sensor map (dict)
 
         Returns:
-            A weeWX loop packet consisting of only those fields in the sensor
+            A WeeWX loop packet consisting of only those fields in the sensor
             map that also exist in the source data dict.
         """
 
@@ -377,7 +383,8 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             # ourselves using the sub-data and sub-map.
             if hasattr(b_field, 'keys'):
                 # we have a sub-map
-                packet.update(BloomskyDriver._map_fields(data.get(w_field, {}), b_field))
+                packet.update(BloomskyDriver._map_fields(data.get(w_field, {}),
+                                                         b_field))
             else:
                 # no-sub map so map to our result if we have data
                 if b_field in data:
@@ -398,11 +405,9 @@ class Collector(object):
 
 
 class ApiClient(Collector):
-    """Poll the bloomsky API for data and put the data in the queue.
+    """Class to poll the BloomSky API and return data to the driver."""
 
-    """
-
-    # endpoint for the Bloomsky API GET request
+    # endpoint for the BloomSky API GET request
     API_URL = 'https://api.bloomsky.com/api/skydata/'
 
     # Data fields contained in the base API response
@@ -451,8 +456,8 @@ class ApiClient(Collector):
         self._max_tries = max_tries
         # period in seconds to wait before polling again, default is 10 seconds
         self._retry_wait = retry_wait
-        # get a station data object to do the handle the interraction with the
-        # Bloomsky API
+        # get a station data object to do the handle the interaction with the
+        # BloomSky API
         self.sd = ApiClient.StationData(api_key)
         self._thread = None
         self._collect_data = False
@@ -462,7 +467,7 @@ class ApiClient(Collector):
 
         # ts of last time API was polled
         last_poll = 0
-        # collect data continuoiusly while we are told to collect data
+        # collect data continuously while we are told to collect data
         while self._collect_data:
             now = int(time.time())
             # is it time to poll?
@@ -510,7 +515,7 @@ class ApiClient(Collector):
         resulting dict.
 
         Input:
-            data: JSON object containing the API reponse
+            data: JSON object containing the API response
 
         Returns:
             A dict containing the extracted and translated data. Dict may
@@ -537,14 +542,15 @@ class ApiClient(Collector):
                 if item in data[0]['Storm']:
                     data_dict['Storm'][item] = data[0]['Storm'][item]
         # perform any manipulation/translation of the API response data (eg if
-        # no Storm device UV will be 9999, weeWX expects so UV field or data is
+        # no Storm device UV will be 9999, WeeWX expects so UV field or data is
         # no sensor so delete the UV entry)
-        data_dict.update(ApiClient.translate_data(data_dict, ApiClient.TRANSLATIONS))
+        data_dict.update(ApiClient.translate_data(data_dict,
+                                                  ApiClient.TRANSLATIONS))
         return data_dict
 
     @staticmethod
     def translate_data(data, td):
-        """Translate Bloomsky API response data to meet weeWX requirements."""
+        """Translate BloomSky API response data to meet WeeWX requirements."""
 
         # iterate over each item in the translation dict
         for key, value in td.iteritems():
@@ -562,12 +568,12 @@ class ApiClient(Collector):
 
     @staticmethod
     def _trans_voltage(data, key):
-        """Translate Bloomsky API Voltage field.
+        """Translate BloomSky API Voltage field.
 
-        API provides voltage in mV, weeWX uses V.
+        API provides voltage in mV, WeeWX uses V.
 
         Inputs:
-            data: Dict containing the translated API reponse
+            data: Dict containing the translated API response
             key:  Key to the dict of the field concerned
         """
 
@@ -582,9 +588,9 @@ class ApiClient(Collector):
 
     @staticmethod
     def _trans_uv(data, key, not_present=9999):
-        """Translate Bloomsky API UVIndex field.
+        """Translate BloomSky API UVIndex field.
 
-        API provides UV of 9999 is no UV (Storm) sensor exists, weeWX expects
+        API provides UV of 9999 is no UV (Storm) sensor exists, WeeWX expects
         there to be no UV field if no UV sensor exists.
 
         Inputs:
@@ -601,10 +607,10 @@ class ApiClient(Collector):
 
     @staticmethod
     def _trans_luminance(data, key, not_present=9999):
-        """Translate Bloomsky API Luminance field.
+        """Translate BloomSky API Luminance field.
 
         API provides Luminance of 9999 is no Luminance (Storm) sensor exists,
-        weeWX expects there to be no Luminance field if no Luminance sensor
+        WeeWX expects there to be no Luminance field if no Luminance sensor
         exists.
 
         Inputs:
@@ -621,10 +627,10 @@ class ApiClient(Collector):
 
     @staticmethod
     def _trans_wind_dir(data, key):
-        """Translate Bloomsky API WindDirection field.
+        """Translate BloomSky API WindDirection field.
 
         API provides WindDirection using one of the 16-wind compass points,
-        weeWX uses numeric degrees.
+        WeeWX uses numeric degrees.
 
         Inputs:
             dir: String containing one of the 16-wind compass points
@@ -634,7 +640,7 @@ class ApiClient(Collector):
         data[key] = ApiClient.WIND_DIR_MAP.get(data[key], None)
 
     def startup(self):
-        """Start a thread that collects data from the Bloomsky API."""
+        """Start a thread that collects data from the BloomSky API."""
 
         self._thread = ApiClient.CollectorThread(self)
         self._collect_data = True
@@ -649,7 +655,7 @@ class ApiClient(Collector):
             self._thread = None
 
     class CollectorThread(threading.Thread):
-        """Class used to do Bloomsky API calls in a thread."""
+        """Class used to do BloomSky API calls in a thread."""
 
         def __init__(self, client):
             threading.Thread.__init__(self)
@@ -658,8 +664,8 @@ class ApiClient(Collector):
 
         def run(self):
             # rather than letting the thread silently fail if an exception
-            # occurs within the thread wrap in a try..except so the expection
-            # can be caught and available exception information diplayed
+            # occurs within the thread wrap in a try..except so the exception
+            # can be caught and available exception information displayed
             try:
                 # kick the collection off
                 self.client.collect_data()
@@ -669,14 +675,14 @@ class ApiClient(Collector):
                 weeutil.weeutil.log_traceback("    ****  ", syslog.LOG_INFO)
 
     class StationData(object):
-        """Class to obtain station data from the Bloomsky API."""
+        """Class to obtain station data from the BloomSky API."""
 
         def __init__(self, api_key):
             self._api_key = api_key
             self._last_update = 0
 
         def get_data(self, units='intl'):
-            """Get raw data the Bloomsky API."""
+            """Get raw data the BloomSky API."""
 
             # we pass the API key in the header
             headers = {'Authorization': self._api_key}
@@ -686,7 +692,7 @@ class ApiClient(Collector):
                 params['unit'] = units
             # make the request and get the returned data
             resp_json = ApiClient.get_request(ApiClient.API_URL,
-                                               params, headers)
+                                              params, headers)
             self._last_update = int(time.time())
             return resp_json
 
@@ -701,10 +707,10 @@ class ApiClient(Collector):
             obfuscated['Authorization'] = ''.join(("....", obfuscated['Authorization'][-4:]))
         logdbg("url: %s data: %s hdr: %s" % (url, params, obfuscated))
         # A urllib2.Request that includes a 'data' parameter value will be sent
-        # as a POST request. the Bloomsky API requires a GET request. So to
+        # as a POST request. the BloomSky API requires a GET request. So to
         # send as a GET request with data just append '?' and the 'data' to the
         # URL then create the request with just url and headers parameters.
-        _url = ''.join((url,'?', data))
+        _url = ''.join((url, '?', data))
         # create a Request object
         req = urllib2.Request(url=_url, headers=headers)
         # submit the request
@@ -716,7 +722,7 @@ class ApiClient(Collector):
         return resp_json
 
 
-# To test this driver, do one of the following depending on your weeWX install
+# To test this driver, do one of the following depending on your WeeWX install
 # type:
 #   PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py
 #
@@ -732,15 +738,15 @@ if __name__ == "__main__":
         syslog.openlog('wee_bloomsky', syslog.LOG_PID | syslog.LOG_CONS)
         parser = optparse.OptionParser(usage=usage)
         parser.add_option('--version', dest='version', action='store_true',
-                          help='display Bloomsky driver version number')
+                          help='display BloomSky driver version number')
         parser.add_option('--debug', dest='debug', action='store_true',
                           help='display diagnostic information while running')
         parser.add_option('--run-driver', dest='run_driver', action='store_true',
-                          metavar='RUN_DRIVER', help='run the Bloomsky driver')
+                          metavar='RUN_DRIVER', help='run the BloomSky driver')
         parser.add_option('--api-key', dest='api_key', metavar='API_KEY',
-                          help='Bloomsky API key')
+                          help='BloomSky API key')
         parser.add_option('--get-json-data', dest='jdata', action='store_true',
-                          help='get Bloomsky API json response')
+                          help='get BloomSky API json response')
         (opts, args) = parser.parse_args()
 
         # if --debug raise our log level
@@ -756,12 +762,12 @@ if __name__ == "__main__":
         if opts.run_driver:
             run_driver(opts.api_key)
 
-        # get Bloomsky API JSON response
+        # get BloomSky API JSON response
         if opts.jdata:
             get_json_data(opts.api_key)
 
     def run_driver(api_key):
-        """Run the Bloomsky driver."""
+        """Run the BloomSky driver."""
 
         import weeutil.weeutil
 
@@ -778,7 +784,7 @@ if __name__ == "__main__":
             driver.closePort()
 
     def get_json_data(api_key):
-        """Get the Bloomsky API JSON format response and display on screen."""
+        """Get the BloomSky API JSON format response and display on screen."""
 
         # get an ApiClient object
         api_client = ApiClient(api_key=api_key)
