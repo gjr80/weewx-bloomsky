@@ -260,7 +260,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         retry_wait = int(stn_dict.get('retry_wait', 10))
         # BloomSky claim data is updated from the station every 5-8 minutes.
         # Set how often (in seconds) we should poll the API.
-        poll_interval = int(stn_dict.get('poll_interval', 120))
+        poll_interval = int(stn_dict.get('poll_interval', 60))
         # API key issued obtained from dashboard.bloomsky.com
         api_key = stn_dict['api_key']
         obfuscated = ''.join(('"....', api_key[-4:], '"'))
@@ -450,7 +450,7 @@ class ApiClient(Collector):
 
         # the API key from dashboard.bloomsky.com
         self._api_key = api_key
-        # interval between polls of the API, default is 120 seconds
+        # interval between polls of the API, default is 60 seconds
         self._poll_interval = poll_interval
         # how many times to poll the API before giving up, default is 3
         self._max_tries = max_tries
