@@ -10,11 +10,13 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                         Installer for Bloomsky Driver
 
-Version: 0.1.0                                        Date: 29 May 2019
+Version: 1.0.0                                        Date: 31 May 2019
 
 Revision History
+    31 May 2019         v1.0.0
+        - bump version number only
     29 May 2019         v0.1.1
-        -   reformatted comments
+        - reformatted comments
     25 June 2017        v0.1.0
         - initial implementation
 """
@@ -25,7 +27,7 @@ from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
 REQUIRED_VERSION = "3.7.0"
-BLOOMSKY_VERSION = "0.1.1"
+BLOOMSKY_VERSION = "1.0.0"
 
 
 def loader():

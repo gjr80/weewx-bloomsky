@@ -18,9 +18,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.1.1                                    Date: 29 May 2019
+Version: 1.0.0                                    Date: 31 May 2019
 
 Revision History
+    31 May 2019         v1.0.0
+        - now python 2.6+, 3.5+ compatible
     29 May 2019         v0.1.1
         - added missing barometer, luminance and raining fields to default
           sensor map
@@ -147,14 +149,15 @@ installation type:
 """
 
 # Python imports
-import Queue
 import json
+import socket
 import syslog
 import threading
 import time
-import urllib2
 
-from urllib import urlencode
+# python 2/3 compatibility shims
+from six.moves import queue
+from six.moves import urllib
 
 # WeeWX imports
 import weeutil
@@ -163,7 +166,7 @@ import weewx.drivers
 import weewx.wxformulas
 
 DRIVER_NAME = 'Bloomsky'
-DRIVER_VERSION = "0.1.1"
+DRIVER_VERSION = "1.0.0"
 
 
 def logmsg(level, msg):
@@ -217,7 +220,7 @@ class BloomskyConfEditor(weewx.drivers.AbstractConfEditor):
 
     def prompt_for_settings(self):
         settings = dict()
-        print "Specify the API key from dashboard.bloomsky.com"
+        print("Specify the API key from dashboard.bloomsky.com")
         settings['api_key'] = self._prompt('api_key')
         return settings
 
@@ -308,7 +311,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                 # if we did get a packet then yield it for processing
                 if packet:
                     yield packet
-            except Queue.Empty:
+            except queue.Empty:
                 # there was nothing in the queue so continue
                 pass
 
@@ -378,7 +381,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         # initialise our result
         packet = dict()
         # step through each key:value pair in the sensor map
-        for (w_field, b_field) in map.iteritems():
+        for (w_field, b_field) in map.items():
             # If the 'value' element is a dict we have a sub-map. Call
             # ourselves using the sub-data and sub-map.
             if hasattr(b_field, 'keys'):
@@ -395,7 +398,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
 class Collector(object):
     """Base class for the client that polls an API."""
 
-    queue = Queue.Queue()
+    queue = queue.Queue()
 
     def startup(self):
         pass
@@ -487,7 +490,7 @@ class ApiClient(Collector):
                         Collector.queue.put(data)
                         # we are done so break out of the for loop
                         break
-                    except (urllib2.HTTPError, urllib2.URLError), e:
+                    except (urllib.error.HTTPError, urllib.error.URLError) as e:
                         # handle any errors caught
                         logerr("Failed attempt %s of %s to get data: %s" %
                                (tries + 1, self._max_tries, e))
@@ -553,7 +556,7 @@ class ApiClient(Collector):
         """Translate BloomSky API response data to meet WeeWX requirements."""
 
         # iterate over each item in the translation dict
-        for key, value in td.iteritems():
+        for key, value in td.items():
             # if the item is dict then recursively call ourself to translate
             # any fields in the child dict
             if hasattr(value, 'keys'):
@@ -701,7 +704,7 @@ class ApiClient(Collector):
         """Submit HTTP GET request and return any data as JSON object."""
 
         # encode the GET parameters
-        data = urlencode(params)
+        data = urllib.parse.urlencode(params)
         obfuscated = dict(headers)
         if 'Authorization' in obfuscated:
             obfuscated['Authorization'] = ''.join(("....", obfuscated['Authorization'][-4:]))
@@ -712,9 +715,32 @@ class ApiClient(Collector):
         # URL then create the request with just url and headers parameters.
         _url = ''.join((url, '?', data))
         # create a Request object
-        req = urllib2.Request(url=_url, headers=headers)
-        # submit the request
-        resp = urllib2.urlopen(req).read()
+        req = urllib.request.Request(url=_url, headers=headers)
+        try:
+            # submit the request
+            w = urllib.request.urlopen(req)
+            # resp = urllib.request.urlopen(req).read()
+            # Get charset used so we can decode the stream correctly.
+            # Unfortunately the way to get the charset depends on whether
+            # we are running under python2 or python3. Assume python3 but be
+            # prepared to catch the error if python2.
+            try:
+                char_set = w.headers.get_content_charset()
+            except AttributeError:
+                # must be python2
+                char_set = w.headers.getparam('charset')
+            # Now get the response and decode it using the headers character
+            # set, BloomSky does not currently return a character set in its
+            # API response headers so be prepared for charset==None.
+            if char_set is not None:
+                resp = w.read().decode(char_set)
+            else:
+                resp = w.read().decode()
+            w.close()
+        except (urllib.error.URLError, socket.timeout) as e:
+            logerr("bloomsky",
+                   "Failed to get BloomSky API data")
+            logerr("bloomsky", "   **** %s" % e)
         # convert the response to a JSON object
         resp_json = json.loads(resp)
         logdbg3("JSON API response: %s" % json.dumps(resp_json))
@@ -755,7 +781,7 @@ if __name__ == "__main__":
 
         # display driver version number
         if opts.version:
-            print "%s driver version: %s" % (DRIVER_NAME, DRIVER_VERSION)
+            print("%s driver version: %s" % (DRIVER_NAME, DRIVER_VERSION))
             exit(0)
 
         # run the driver
@@ -778,7 +804,7 @@ if __name__ == "__main__":
             driver = BloomskyDriver(api_key=api_key)
             # continuously get loop packets and print them to screen
             for pkt in driver.genLoopPackets():
-                print weeutil.weeutil.timestamp_to_string(pkt['dateTime']), pkt
+                print(weeutil.weeutil.timestamp_to_string(pkt['dateTime']), pkt)
         except KeyboardInterrupt:
             # we have a keyboard interrupt so shut down
             driver.closePort()
@@ -791,6 +817,6 @@ if __name__ == "__main__":
         # get the JSON response
         raw_data = api_client.sd.get_data()
         # display the JSON response on screen
-        print json.dumps(raw_data, sort_keys=True, indent=2)
+        print(json.dumps(raw_data, sort_keys=True, indent=2))
 
     main()
