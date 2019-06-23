@@ -18,9 +18,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 1.0.0                                    Date: 31 May 2019
+Version: 1.0.1                                    Date: 23 June 2019
 
 Revision History
+    23 June 2019        v1.0.1
+        - additional exception handling to handle a malformed API response
     31 May 2019         v1.0.0
         - now python 2.6+, 3.5+ compatible
     29 May 2019         v0.1.1
@@ -497,6 +499,14 @@ class ApiClient(Collector):
                         logdbg("Waiting %s seconds before retry" %
                                self._retry_wait)
                         time.sleep(self._retry_wait)
+                    except IndexError as e:
+                        # most likely we got back a blank response or maybe
+                        # something couldn't be found where it was expected
+                        logerr("Invalid data received on attempt %s of %s: %s" %
+                               (tries + 1, self._max_tries, e))
+                        logdbg("Waiting %s seconds before retry" %
+                               self._retry_wait)
+                        time.sleep(self._retry_wait)
                 else:
                     # if we did not get any data after self._max_tries log it
                     logerr("Failed to get data after %d attempts" %
@@ -719,7 +729,6 @@ class ApiClient(Collector):
         try:
             # submit the request
             w = urllib.request.urlopen(req)
-            # resp = urllib.request.urlopen(req).read()
             # Get charset used so we can decode the stream correctly.
             # Unfortunately the way to get the charset depends on whether
             # we are running under python2 or python3. Assume python3 but be
