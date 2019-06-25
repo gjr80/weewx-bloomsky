@@ -747,9 +747,8 @@ class ApiClient(Collector):
                 resp = w.read().decode()
             w.close()
         except (urllib.error.URLError, socket.timeout) as e:
-            logerr("bloomsky",
-                   "Failed to get BloomSky API data")
-            logerr("bloomsky", "   **** %s" % e)
+            logerr("Failed to get BloomSky API data")
+            logerr("   **** %s" % e)
         # convert the response to a JSON object
         resp_json = json.loads(resp)
         logdbg3("JSON API response: %s" % json.dumps(resp_json))
