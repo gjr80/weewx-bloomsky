@@ -149,14 +149,13 @@ used from the first found device ID. Other device IDs are ignored. This driver
 can use data from multiple device IDs by defining a sensor map in weewx.conf
 under [Bloomsky]. Refer to the Bloomsky driver User's Guide
 (https://github.com/gjr80/weewx-bloomsky/wiki/User's-Guide).
-
-
 """
 
 # Python imports
+import fnmatch
 import json
+import logging
 import socket
-import syslog
 import threading
 import time
 
@@ -170,35 +169,11 @@ import weeutil
 import weewx.drivers
 import weewx.wxformulas
 
+# obtain a logger object
+log = logging.getLogger(__name__)
+
 DRIVER_NAME = 'Bloomsky'
 DRIVER_VERSION = "1.0.0"
-
-
-def logmsg(level, msg):
-    syslog.syslog(level, 'bloomsky: %s: %s' %
-                  (threading.currentThread().getName(), msg))
-
-
-def logdbg(msg):
-    logmsg(syslog.LOG_DEBUG, msg)
-
-
-def logdbg2(msg):
-    if weewx.debug >= 2:
-        logmsg(syslog.LOG_DEBUG, msg)
-
-
-def logdbg3(msg):
-    if weewx.debug >= 3:
-        logmsg(syslog.LOG_DEBUG, msg)
-
-
-def loginf(msg):
-    logmsg(syslog.LOG_INFO, msg)
-
-
-def logerr(msg):
-    logmsg(syslog.LOG_ERR, msg)
 
 
 def loader(config_dict, engine):
@@ -255,7 +230,6 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                                          'deviceType':      'DeviceType',
                                          'barometer':       'Pressure',
                                          'luminance':       'Luminance',
-                                         'barometer':       'pressure',
                                          'raining':         'Rain',
                                          'night':           'Night',
                                          'imageTimestamp':  'ImageTS'},
@@ -265,8 +239,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                                          'windSpeed':       'SustainedWindSpeed',
                                          'windDir':         'WindDirection',
                                          'windGust':        'WindGust',
-                                         'rainDaily':       'RainDaily'}
-    """Driver for obtaining data from the Bloomsky API."""
+                                         'rainDaily':       'RainDaily'}}
 
     # Sane default map from Bloomsky API field names to weeWX db schema names
     # that will work in most cases (ie single Sky and/or Storm). Accounts with
@@ -295,16 +268,16 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
     DEFAULT_DELTAS = {'rain': 'rainDaily'}
 
     def __init__(self, **stn_dict):
-        loginf('driver version is %s' % DRIVER_VERSION)
+        log.info('driver version is %s' % DRIVER_VERSION)
         self.sensor_map = dict(BloomskyDriver.DEFAULT_SENSOR_MAP)
         if 'sensor_map' in stn_dict:
             self.sensor_map.update(stn_dict['sensor_map'])
-        loginf('sensor map is %s' % self.sensor_map)
+        log.info('sensor map is %s' % self.sensor_map)
         # number of time to try and get a response from the BloomSky API
 
         # get the deltas
         self.deltas = stn_dict.get('deltas', BloomskyDriver.DEFAULT_DELTAS)
-        loginf('deltas is %s' % self.deltas)
+        log.info('deltas is %s' % self.deltas)
 
         # number of time to try and get a response from the Bloomsky API
         max_tries = int(stn_dict.get('max_tries', 3))
@@ -316,10 +289,10 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         # API key issued obtained from dashboard.bloomsky.com
         api_key = stn_dict['api_key']
         obfuscated = ''.join(('"....', api_key[-4:], '"'))
-        logdbg('poll interval is %d seconds, API key is %s' % (poll_interval,
-                                                               obfuscated))
-        logdbg('max tries is %d, retry wait time is %d seconds' % (max_tries,
-                                                                   retry_wait))
+        log.debug('poll interval is %d seconds, API key is %s' % (poll_interval,
+                                                                  obfuscated))
+        log.debug('max tries is %d, retry wait time is %d seconds' % (max_tries,
+                                                                      retry_wait))
         self._counter_values = dict()
         self.last_rain = None
         # create an ApiClient object to interact with the BloomSky API
@@ -386,7 +359,8 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                 # create a loop packet
                 packet = self.data_to_packet(raw_data)
                 # log the packet but only if debug>=2
-                logdbg2('Packet: %s' % packet)
+                if weewx.debug >= 2:
+                    log.debug('Packet: %s' % packet)
                 # if we did get a packet then yield it for processing
                 if packet:
                     yield packet
@@ -501,8 +475,8 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             if (total is not None and self.last_rain is not None
                     and total < self.last_rain):
                 # yes we have, just log it
-                loginf("dailyRain decrement ignored:"
-                       " new: %s old: %s" % (total, self.last_rain))
+                log.info("dailyRain decrement ignored:"
+                         " new: %s old: %s" % (total, self.last_rain))
             # calculate the rainfall since the last packet
             packet['rain'] = weewx.wxformulas.calculate_rain(total,
                                                              self.last_rain)
@@ -721,33 +695,33 @@ class ApiClient(Collector):
                         # dicts
                         data = ApiClient.extract_data(raw_data)
                         # log the extracted data for debug purposes
-                        logdbg3("Extracted data: %s" % data)
+                        if weewx.debug >= 3:
+                            log.debug("Extracted data: %s" % data)
                         # put the data in the queue
                         Collector.queue.put(data)
                         # we are done so break out of the for loop
                         break
                     except (urllib.error.HTTPError, urllib.error.URLError) as e:
                         # handle any errors caught
-                        logerr("Failed attempt %s of %s to get data: %s" %
-                               (tries + 1, self._max_tries, e))
-                        logdbg("Waiting %s seconds before retry" %
-                               self._retry_wait)
+                        log.error("Failed attempt %s of %s to get data: %s" % (tries + 1,
+                                                                               self._max_tries,
+                                                                               e))
+                        log.debug("Waiting %s seconds before retry" % self._retry_wait)
                         time.sleep(self._retry_wait)
                     except IndexError as e:
                         # most likely we got back a blank response or maybe
                         # something couldn't be found where it was expected
-                        logerr("Invalid data received on attempt %s of %s: %s" %
-                               (tries + 1, self._max_tries, e))
-                        logdbg("Waiting %s seconds before retry" %
-                               self._retry_wait)
+                        log.error("Invalid data received on attempt %s of %s: %s" % (tries + 1,
+                                                                                     self._max_tries,
+                                                                                     e))
+                        log.debug("Waiting %s seconds before retry" % self._retry_wait)
                         time.sleep(self._retry_wait)
                 else:
                     # if we did not get any data after self._max_tries log it
-                    logerr("Failed to get data after %d attempts" %
-                           self._max_tries)
+                    log.error("Failed to get data after %d attempts" % self._max_tries)
                 # reset the last poll ts
                 last_poll = now
-                logdbg('Next update in %s seconds' % self._poll_interval)
+                log.debug('Next update in %s seconds' % self._poll_interval)
             # sleep and see if its time to poll again
             time.sleep(1)
 
@@ -947,7 +921,7 @@ class ApiClient(Collector):
                 self.client.collect_data()
             except:
                 # we have an exception so log what we can
-                loginf('Exception:')
+                log.info('Exception:')
                 weeutil.weeutil.log_traceback("    ****  ", syslog.LOG_INFO)
 
     class StationData(object):
@@ -994,14 +968,14 @@ class ApiClient(Collector):
         obfuscated = dict(headers)
         if 'Authorization' in obfuscated:
             obfuscated['Authorization'] = ''.join(("....", obfuscated['Authorization'][-4:]))
-        logdbg("url: %s data: %s hdr: %s" % (url, params, obfuscated))
+        log.debug("url: %s data: %s hdr: %s" % (url, params, obfuscated))
         data = urlencode(params)
         # obtain an obfuscated copy of the API key being used for use when
         # logging
         obf = dict(headers)
         if 'Authorization' in obf:
             obf['Authorization'] = ''.join(("....", obf['Authorization'][-4:]))
-        logdbg("url: %s data: %s hdr: %s" % (url, params, obf))
+        log.debug("url: %s data: %s hdr: %s" % (url, params, obf))
         # A urllib2.Request that includes a 'data' parameter value will be sent
         # as a POST request. the BloomSky API requires a GET request. So to
         # send as a GET request with data just append '?' and the 'data' to the
@@ -1030,12 +1004,13 @@ class ApiClient(Collector):
                 resp = w.read().decode()
             w.close()
         except (urllib.error.URLError, socket.timeout) as e:
-            logerr("Failed to get BloomSky API data")
-            logerr("   **** %s" % e)
+            log.error("Failed to get BloomSky API data")
+            log.error("   **** %s" % e)
         # convert the response to a JSON object
         resp_json = json.loads(resp)
         # log response as required
-        logdbg3("JSON API response: %s" % json.dumps(resp_json))
+        if weewx.debug >= 3:
+            log.debug("JSON API response: %s" % json.dumps(resp_json))
         # return the JSON object
         return resp_json
 
@@ -1090,13 +1065,13 @@ if __name__ == "__main__":
 
         # get config_dict to use
         config_path, config_dict = weecfg.read_config(opts.config_path, args)
-        print "Using configuration file %s" % config_path
+        print( "Using configuration file %s" % config_path)
         stn_dict = config_dict.get('Bloomsky', {})
 
         # do we have a specific API key to use
         if opts.api_key:
             stn_dict['api_key'] = opts.api_key
-            print "Using Bloomsky API key %s" % opts.api_key
+            print("Using Bloomsky API key %s" % opts.api_key)
 
         # display device IDs
         if opts.get_ids:
@@ -1120,11 +1095,11 @@ if __name__ == "__main__":
         driver = BloomskyDriver(**stn_dict)
         ids = driver.ids
         if len(ids) > 1:
-            print "Found Bloomsky device IDs: %s" % ', '.join(ids)
+            print("Found Bloomsky device IDs: %s" % ', '.join(ids))
         elif len(ids) == 1:
-            print "Found Bloomsky device ID: %s" % ', '.join(ids)
+            print("Found Bloomsky device ID: %s" % ', '.join(ids))
         else:
-            print "No Bloomsky device IDS found"
+            print("No Bloomsky device IDS found")
         driver.closePort()
         exit(0)
 
@@ -1165,11 +1140,12 @@ if __name__ == "__main__":
             # get the JSON response
             raw_data = api_client.sd.get_data()
             # display the JSON response on screen
-            print json.dumps(raw_data, sort_keys=True, indent=2)
+            print(json.dumps(raw_data, sort_keys=True, indent=2))
         else:
-            print "Bloomsky API key required."
-            print "Specify API key in configuration file under [Bloomsky] or use --api_key option."
-            print "Exiting."
+            print("Bloomsky API key required.")
+            print("Specify API key in configuration file under [Bloomsky] or use --api_key option.")
+            print("Exiting.")
             exit(1)
 
     main()
+
