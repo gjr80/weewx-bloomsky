@@ -139,16 +139,6 @@ installation type:
     setup.py install:
     $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py --run-driver --api-key=INSERT_API_KEY
 
-
-Support for Multiple Device IDs
-
-1.  In the case of Bloomsky accounts that have multiple device IDs (as distinct
-from multiple devices) a default install will result in data being obtained and
-used from the first found device ID. Other device IDs are ignored. This driver
-can use data from multiple device IDs by defining a sensor map in weewx.conf
-under [Bloomsky]. Refer to the Bloomsky driver User's Guide
-(https://github.com/gjr80/weewx-bloomsky/wiki/User's-Guide).
-
 7.  If WeeWX is running stop then start WeeWX otherwise start WeeWX.
 
 Support for Multiple Device IDs
