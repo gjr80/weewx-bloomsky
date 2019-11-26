@@ -139,15 +139,28 @@ installation type:
     setup.py install:
     $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py --run-driver --api-key=INSERT_API_KEY
 
-    or
 
-    any other install type:
-    $ PYTHONPATH=/usr/share/weewx python /usr/share/weewx/user/bloomsky.py --run-driver --api-key=INSERT_API_KEY
+Support for Multiple Device IDs
 
-    This should result in loop packets being displayed on the terminal windows
-    every 60 seconds.
+1.  In the case of Bloomsky accounts that have multiple device IDs (as distinct
+from multiple devices) a default install will result in data being obtained and
+used from the first found device ID. Other device IDs are ignored. This driver
+can use data from multiple device IDs by defining a sensor map in weewx.conf
+under [Bloomsky]. Refer to the Bloomsky driver User's Guide
+(https://github.com/gjr80/weewx-bloomsky/wiki/User's-Guide).
 
 7.  If WeeWX is running stop then start WeeWX otherwise start WeeWX.
+
+Support for Multiple Device IDs
+
+1.  In the case of Bloomsky accounts that have multiple device IDs (as distinct
+from multiple devices) a default install will result in data being obtained and
+used from the first found device ID. Other device IDs are ignored. This driver
+can use data from multiple device IDs by defining a sensor map in weewx.conf
+under [Bloomsky]. Refer to the Bloomsky driver User's Guide
+(https://github.com/gjr80/weewx-bloomsky/wiki/User's-Guide).
+
+
 """
 
 # Python imports
@@ -206,7 +219,13 @@ def confeditor_loader():
     return BloomskyConfEditor()
 
 
+# ============================================================================
+#                         class BloomskyConfEditor
+# ============================================================================
+
+
 class BloomskyConfEditor(weewx.drivers.AbstractConfEditor):
+
     @property
     def default_stanza(self):
         return """
@@ -227,6 +246,11 @@ class BloomskyConfEditor(weewx.drivers.AbstractConfEditor):
         return settings
 
 
+# ============================================================================
+#                           class BloomskyDriver
+# ============================================================================
+
+
 class BloomskyDriver(weewx.drivers.AbstractDevice):
     """BloomSky driver class."""
 
@@ -241,6 +265,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                                          'deviceType':      'DeviceType',
                                          'barometer':       'Pressure',
                                          'luminance':       'Luminance',
+                                         'barometer':       'pressure',
                                          'raining':         'Rain',
                                          'night':           'Night',
                                          'imageTimestamp':  'ImageTS'},
@@ -251,7 +276,33 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                                          'windDir':         'WindDirection',
                                          'windGust':        'WindGust',
                                          'rainDaily':       'RainDaily'}
+    """Driver for obtaining data from the Bloomsky API."""
+
+    # Sane default map from Bloomsky API field names to weeWX db schema names
+    # that will work in most cases (ie single Sky and/or Storm). Accounts with
+    # multiple DeviceIDs (ie more than one Sky or more than one Storm) will
+    # need to define a map in weewx.conf.
+    DEFAULT_SENSOR_MAP = {'deviceID':        '*.DeviceID',
+                          'deviceName':      '*.DeviceName',
+                          'outTemp':         '*.Data.Temperature',
+                          'txBatteryStatus': '*.Data.Voltage',
+                          'UV':              '*.Data.UVIndex',
+                          'outHumidity':     '*.Data.Humidity',
+                          'imageURL':        '*.Data.ImageURL',
+                          'deviceType':      '*.Data.DeviceType',
+                          'night':           '*.Data.Night',
+                          'imageTimestamp':  '*.Data.ImageTS',
+                          'luminance':       '*.Data.Luminance',
+                          'barometer':       '*.Data.pressure',
+                          'inTemp':          '*.Point.Temperature',
+                          'inHumidity':      '*.Point.Humidity',
+                          'rainRate':        '*.Storm.RainRate',
+                          'windSpeed':       '*.Storm.SustainedWindSpeed',
+                          'windDir':         '*.Storm.WindDirection',
+                          'windGust':        '*.Storm.WindGust',
+                          'rainDaily':       '*.Storm.RainDaily'
                           }
+    DEFAULT_DELTAS = {'rain': 'rainDaily'}
 
     def __init__(self, **stn_dict):
         loginf('driver version is %s' % DRIVER_VERSION)
@@ -260,6 +311,12 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             self.sensor_map.update(stn_dict['sensor_map'])
         loginf('sensor map is %s' % self.sensor_map)
         # number of time to try and get a response from the BloomSky API
+
+        # get the deltas
+        self.deltas = stn_dict.get('deltas', BloomskyDriver.DEFAULT_DELTAS)
+        loginf('deltas is %s' % self.deltas)
+
+        # number of time to try and get a response from the Bloomsky API
         max_tries = int(stn_dict.get('max_tries', 3))
         # wait time in seconds between retries
         retry_wait = int(stn_dict.get('retry_wait', 10))
@@ -273,6 +330,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                                                                obfuscated))
         logdbg('max tries is %d, retry wait time is %d seconds' % (max_tries,
                                                                    retry_wait))
+        self._counter_values = dict()
         self.last_rain = None
         # create an ApiClient object to interact with the BloomSky API
         self.collector = ApiClient(api_key,
@@ -293,6 +351,35 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
     @property
     def hardware_name(self):
         return DRIVER_NAME
+
+    @property
+    def ids(self):
+        """Return the Bloomsky device IDs."""
+
+        raw_data = None
+        # loop until we get some raw data
+        while raw_data is None:
+            # wrap in try..except so we can catch the empty queue error
+            try:
+                # get any data from the collector queue
+                raw_data = self.collector.queue.get(True, 10)
+            except Queue.Empty:
+                # there was nothing in the queue so continue
+                pass
+        # The raw data will be a list of dicts where each dict is the data for
+        # a particular device ID. Each dict should have a DeviceID field
+        # containing the device ID.
+        # initialise our response
+        ids = []
+        # iterate over each of the device dicts
+        for device in raw_data:
+            # append the device ID to our response, be prepared to catch the
+            # case where there is no DeviceID field
+            try:
+                ids.append(device['DeviceID'])
+            except KeyError:
+                pass
+        return ids
 
     def genLoopPackets(self):
         """Wait for BloomSky API from the ApiClient and yield a loop packets.
@@ -319,17 +406,88 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
 
     def data_to_packet(self, data):
         """Convert BloomSky data to WeeWX packet format.
+    def calculate_rain(self, packet):
+        """Calculate rainfall values for rain fields."""
+
+        for delta_field, src_field in self.deltas.iteritems():
+            if src_field in packet:
+                packet[delta_field] = self._calc_rain(src_field,
+                                                      packet[src_field],
+                                                      self._counter_values.get(src_field))
+                self._counter_values[src_field] = packet[src_field]
+
+    @staticmethod
+    def _calc_rain(src_field, new_total, old_total):
+        """Calculate rainfall given the current and previous totals."""
+
+        delta = None
+        if new_total is not None and old_total is not None:
+            if new_total >= old_total:
+                delta = new_total - old_total
+            else:
+                delta = new_total
+        return delta
+
+    def map_to_fields(self, packet, raw_data):
+        """Map Bloomsky raw data to weeWX packet fields.
 
         The Collector provides BloomSky API response in the form of a dict that
         may contain nested dicts of data. Fist map the BloomSky data to a flat
         WeeWX data packet then add a packet timestamp and unit system fields.
         Finally calculate rain since last packet.
+        Bloomsky API response is provided as a list of dicts with one dict per
+        device ID. Iterate over each sensor map entry adding sensor data to the
+        packet.
 
         Input:
             data: BloomSky API response in dict format
+        Inputs:
+            packet: the packet to be yielded
+            data:   Bloomsky API response in list of dict format
+        """
+
+        # iterate over each of the sensors in the sensor map
+        for s in self.sensor_map:
+            # obtain the mapped sensor value from the raw data, if it can't be
+            # found the returned value will be None
+            value = self.get_sensor_value(raw_data, self.sensor_map[s])
+            # if we have a value other than None add the field to the packet
+            if value is not None:
+                packet[s] = value
+        return
+
+    @staticmethod
+    def get_sensor_value(data, sensor_pattern):
+        """Get a Bloomsky sensor value given a Bloomsky sensor mapping.
+
+        Bloomsky API response is returned as a list of dicts with each dict
+        representing a single device ID. To find a data element represented
+        by a sensor mapping we first iterate over the dicts (device IDs) until
+        we find a matching device and then traverse the device's data (which
+        will contain nested dicts) to find the particular element.
+
+        Sensor map is in the format:
+
+            [XXXXX.][YYYYY.]ZZZZZ
+
+        where:
+            - XXXXX is an optional device ID value or glob pattern to be used
+              to match a device ID. Use of * will match the first available
+              device ID.
+            - YYYYY is an optional value or pattern to match nested data in the
+              API response. If used will normally be 'Data', 'Point' or
+              'Storm'.
+            - ZZZZZ is a Bloomsky API JSON response field name or glob pattern
+              to be used to match a field.
+
+        Inputs:
+            data:           list of dicts containing the Bloomsky data
+            sensor_pattern: sensor map pattern being used
 
         Returns:
             A WeeWX loop packet
+            The data element referred to by the sensor map pattern. Will be
+            None if no element found.
         """
 
         # map the BloomSky API data to a WeeWX loop packet
@@ -361,23 +519,52 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             # adjust our last rain total
             self.last_rain = total
         return packet
+        # initialise our response, assume nothing found to start with
+        element = None
+        # Need the device ID portion of the sensor pattern so we know when we
+        # have a matching device ID. Split the sensor pattern into device ID
+        # portion and the rest.
+        parts = sensor_pattern.split('.', 1)
+        # iterate over each device ID dict in our data
+        for device in data:
+            # do we have a device ID specifier or just a field specifier
+            if len(parts) > 1:
+                if BloomskyDriver._match(parts[0], device['DeviceID']):
+                    element = BloomskyDriver._find_in_device(device, parts[1])
+                    if element:
+                        return element
+            else:
+                # The sensor pattern is for a field only, that makes it simple,
+                # just look for the field at the top level of the dict.
+                # Iterate over the top level items in the dict looking for a
+                # matching field. If the match happens to be a dict then ignore
+                # it as our sensor pattern does not support that.
+                for (k, v) in device.iteritems():
+                    if sensor_pattern == k and not hasattr(k, 'keys'):
+                        element = v
+        return element
 
     @staticmethod
     def _map_fields(data, map):
         """Map BloomSky API response fields to WeeWX loop packet fields.
+    def _find_in_device(data, sensor_pattern):
+        """Find a data element for a device ID given a partial sensor map.
 
-        Iterate over all all sensor map entries and if a field exists that
-        matches the map entry then map the field to a packet dict. Some data
-        fields may be a nested dict so recursively call the _map_fields()
-        method to map any child data fields.
+        Recursively search the data dict for a key that matches the sensor
+        pattern.
 
         Input:
             data: BloomSky API response in dict format
             map: The sensor map (dict)
+        Inputs:
+            data:           device ID data to be searched
+            sensor_pattern: sensor map pattern being used
 
         Returns:
             A WeeWX loop packet consisting of only those fields in the sensor
             map that also exist in the source data dict.
+            The data element referred to by the sensor map pattern. Will be
+            None if no element found.
         """
 
         # initialise our result
@@ -395,10 +582,58 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                 if b_field in data:
                     packet[w_field] = data[b_field]
         return packet
+        # start of assuming we have no match
+        element = None
+        # Split the sensor map at the first period '.' character. Look for a
+        # match for the first part of the pattern and then iteratively look for
+        # the rest as required until the data element being sought is found (if
+        # it exists)
+        parts = sensor_pattern.split('.', 1)
+        # do we have a 'dotted' sensor map or just a sensor/field name
+        if len(parts) > 1:
+            # it's a 'dotted' sensor map
+            for (k, v) in data.iteritems():
+                # iterate over the key, value pairs of our data to see if we
+                # have a match
+                if BloomskyDriver._match(k, parts[0]):
+                    # we have a match so recursively call ourself to continue
+                    # the search at the next 'level' down
+                    element = BloomskyDriver._find_in_device(v, parts[1])
+        else:
+            # just a straight up field/sensor name
+            for (k, v) in data.iteritems():
+                # iterate over the key, value pairs of our data to see if we
+                # have the field we want
+                if sensor_pattern == k:
+                    # we have a match so save it so we can return it
+                    element = v
+        return element
+
+    @staticmethod
+    def _match(value, pattern):
+        """Check if a value matches a glob pattern.
+
+        Returns True if value glob matches pattern otherwise returns False.
+
+        Inputs:
+            pattern: the glob pattern to be used to check against
+            value:   the value being checked
+
+        Returns
+            Boolean indicating whether there is a match or not
+        """
+
+        matches = fnmatch.filter([value], pattern)
+        return True if matches else False
+
+
+# ============================================================================
+#                              class Collector
+# ============================================================================
 
 
 class Collector(object):
-    """Base class for the client that polls an API."""
+    """Base class for a client that polls an API."""
 
     queue = queue.Queue()
 
@@ -409,14 +644,22 @@ class Collector(object):
         pass
 
 
+# ============================================================================
+#                              class ApiClient
+# ============================================================================
+
+
 class ApiClient(Collector):
     """Class to poll the BloomSky API and return data to the driver."""
 
     # endpoint for the BloomSky API GET request
+    """Poll the bloomsky API for data and put the data in the queue."""
+
+    # endpoint for the Bloomsky API GET request
     API_URL = 'https://api.bloomsky.com/api/skydata/'
 
     # Data fields contained in the base API response
-    BASE_ITEMS = ['DeviceID', 'LAT', 'LON', 'ALT', 'UTC', 'DST', 'Searchable',
+    BASE_ITEMS = ['LAT', 'LON', 'ALT', 'UTC', 'DST', 'Searchable', 'DeviceID',
                   'RegisterTime', 'CityName', 'StreetName', 'FullAddress',
                   'DeviceName', 'BoundedPoint', 'NumOfFollowers', 'VideoList',
                   'VideoList_C', 'NumOfFavorites', 'PreviewImageList'
@@ -479,12 +722,13 @@ class ApiClient(Collector):
             if now - last_poll > self._poll_interval:
                 # yes, poll a max of self._max_tries times
                 for tries in range(self._max_tries):
-                    # wrap oin a try..except so we can catch any errors
+                    # wrap in a try..except so we can catch any errors
                     try:
                         # get the raw JSON API response
                         raw_data = self.sd.get_data()
                         # extract the data we want from the JSON response, do
-                        # any manipulation/translation and return as a dict
+                        # any manipulation/translation and return as a list of
+                        # dicts
                         data = ApiClient.extract_data(raw_data)
                         # log the extracted data for debug purposes
                         logdbg3("Extracted data: %s" % data)
@@ -560,6 +804,34 @@ class ApiClient(Collector):
         data_dict.update(ApiClient.translate_data(data_dict,
                                                   ApiClient.TRANSLATIONS))
         return data_dict
+        device_list = []
+        for id in data:
+            device_dict = dict()
+            for item in ApiClient.BASE_ITEMS:
+                if item in id:
+                    device_dict[item] = id[item]
+            if 'Data' in id:
+                device_dict['Data'] = dict()
+                for item in ApiClient.DATA_ITEMS:
+                    if item in id['Data']:
+                        device_dict['Data'][item] = id['Data'][item]
+            if 'Point' in id:
+                device_dict['Point'] = dict()
+                for item in ApiClient.POINT_ITEMS:
+                    if item in id['Point']:
+                        device_dict['Point'][item] = id['Point'][item]
+            if 'Storm' in id:
+                device_dict['Storm'] = dict()
+                for item in ApiClient.STORM_ITEMS:
+                    if item in id['Storm']:
+                        device_dict['Storm'][item] = id['Storm'][item]
+            # perform any manipulation/translation of the API response data
+            # (eg if no Storm device UV will be 9999, weeWX expects so UV field
+            # or data is no sensor so delete the UV entry)
+            device_dict.update(ApiClient.translate_data(device_dict,
+                                                        ApiClient.TRANSLATIONS))
+            device_list.append(device_dict)
+        return device_list
 
     @staticmethod
     def translate_data(data, td):
@@ -571,7 +843,7 @@ class ApiClient(Collector):
             # any fields in the child dict
             if hasattr(value, 'keys'):
                 if key in data:
-                    data.update(ApiClient.translate_data(data[key], value))
+                    data[key].update(ApiClient.translate_data(data[key], value))
             elif key in data:
                 # The key is not a dict and the value contains the method we
                 # must call for the translation. Obtain an object pointing to
@@ -607,7 +879,7 @@ class ApiClient(Collector):
         there to be no UV field if no UV sensor exists.
 
         Inputs:
-            data: Dict containing the translated API reponse
+            data: Dict containing the translated API response
             key:  Key to the dict of the field concerned
             not_present: API response field 'UVField' value if no Storm is
                          present, default is 9999
@@ -627,7 +899,7 @@ class ApiClient(Collector):
         exists.
 
         Inputs:
-            data: Dict containing the translated API reponse
+            data: Dict containing the translated API response
             key:  Key to the dict of the field concerned
             not_present: API response field 'Luminance' value if no Storm is
                          present, default is 9999
@@ -672,6 +944,7 @@ class ApiClient(Collector):
 
         def __init__(self, client):
             threading.Thread.__init__(self)
+            # keep reference to the client we are supporting
             self.client = client
             self.name = 'bloomsky-client'
 
@@ -711,7 +984,20 @@ class ApiClient(Collector):
 
     @staticmethod
     def get_request(url, params, headers):
-        """Submit HTTP GET request and return any data as JSON object."""
+        """Submit HTTP GET request and return any data as JSON object.
+
+        Construct the GET request from its components. Submit the GET request
+        and obtain the JSON format response. The JSON format response is
+        returned without alteration.
+
+        Inputs:
+            url:
+            params:
+            headers:
+
+        Returns:
+            JSON format API response.
+        """
 
         # encode the GET parameters
         data = urllib.parse.urlencode(params)
@@ -719,6 +1005,13 @@ class ApiClient(Collector):
         if 'Authorization' in obfuscated:
             obfuscated['Authorization'] = ''.join(("....", obfuscated['Authorization'][-4:]))
         logdbg("url: %s data: %s hdr: %s" % (url, params, obfuscated))
+        data = urlencode(params)
+        # obtain an obfuscated copy of the API key being used for use when
+        # logging
+        obf = dict(headers)
+        if 'Authorization' in obf:
+            obf['Authorization'] = ''.join(("....", obf['Authorization'][-4:]))
+        logdbg("url: %s data: %s hdr: %s" % (url, params, obf))
         # A urllib2.Request that includes a 'data' parameter value will be sent
         # as a POST request. the BloomSky API requires a GET request. So to
         # send as a GET request with data just append '?' and the 'data' to the
@@ -751,6 +1044,7 @@ class ApiClient(Collector):
             logerr("   **** %s" % e)
         # convert the response to a JSON object
         resp_json = json.loads(resp)
+        # log response as required
         logdbg3("JSON API response: %s" % json.dumps(resp_json))
         # return the JSON object
         return resp_json
@@ -759,10 +1053,16 @@ class ApiClient(Collector):
 # To test this driver, do one of the following depending on your WeeWX install
 # type:
 #   PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py
+# To use this driver in standalone mode for testing or development, use one of
+# the following commands (depending on your weeWX install):
+#
+#   $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py
 #
 #   or
 #
-#   PYTHONPATH=/usr/share/weewx python /usr/share/weewx/user/bloomsky.py
+#   $ PYTHONPATH=/usr/share/weewx python /usr/share/weewx/user/bloomsky.py
+#
+#   The above commands will display details of available command line options.
 
 if __name__ == "__main__":
     usage = """%prog [options] [--help]"""
@@ -773,6 +1073,9 @@ if __name__ == "__main__":
         parser = optparse.OptionParser(usage=usage)
         parser.add_option('--version', dest='version', action='store_true',
                           help='display BloomSky driver version number')
+                          help='display Bloomsky driver version number')
+        parser.add_option('--config', dest='config_path', metavar='CONFIG_FILE',
+                          help="Use configuration file CONFIG_FILE.")
         parser.add_option('--debug', dest='debug', action='store_true',
                           help='display diagnostic information while running')
         parser.add_option('--run-driver', dest='run_driver', action='store_true',
@@ -781,6 +1084,9 @@ if __name__ == "__main__":
                           help='BloomSky API key')
         parser.add_option('--get-json-data', dest='jdata', action='store_true',
                           help='get BloomSky API json response')
+                          help='get Bloomsky API json response')
+        parser.add_option('--get-deviceids', dest='get_ids', action='store_true',
+                          help='get Bloomsky device IDs associated with an API key')
         (opts, args) = parser.parse_args()
 
         # if --debug raise our log level
@@ -792,24 +1098,55 @@ if __name__ == "__main__":
             print("%s driver version: %s" % (DRIVER_NAME, DRIVER_VERSION))
             exit(0)
 
+        # get config_dict to use
+        config_path, config_dict = weecfg.read_config(opts.config_path, args)
+        print "Using configuration file %s" % config_path
+        stn_dict = config_dict.get('Bloomsky', {})
+
+        # do we have a specific API key to use
+        if opts.api_key:
+            stn_dict['api_key'] = opts.api_key
+            print "Using Bloomsky API key %s" % opts.api_key
+
+        # display device IDs
+        if opts.get_ids:
+            get_ids(stn_dict)
+
         # run the driver
         if opts.run_driver:
-            run_driver(opts.api_key)
+            run_driver(stn_dict)
 
         # get BloomSky API JSON response
+        # display Bloomsky API JSON response
         if opts.jdata:
-            get_json_data(opts.api_key)
+            get_json_data(stn_dict)
+
+    def get_ids(stn_dict):
+        """Display Bloomsky device IDs associated with an API key."""
 
     def run_driver(api_key):
         """Run the BloomSky driver."""
+        # get a BloomskyDriver object
+        driver = BloomskyDriver(**stn_dict)
+        ids = driver.ids
+        if len(ids) > 1:
+            print "Found Bloomsky device IDs: %s" % ', '.join(ids)
+        elif len(ids) == 1:
+            print "Found Bloomsky device ID: %s" % ', '.join(ids)
+        else:
+            print "No Bloomsky device IDS found"
+        driver.closePort()
+        exit(0)
+
+    def run_driver(stn_dict):
+        """Run the Bloomsky driver."""
 
         import weeutil.weeutil
 
-        driver = None
         # wrap in a try..except so we can pickup a keyboard interrupt
         try:
             # get a BloomskyDriver object
-            driver = BloomskyDriver(api_key=api_key)
+            driver = BloomskyDriver(**stn_dict)
             # continuously get loop packets and print them to screen
             for pkt in driver.genLoopPackets():
                 print(weeutil.weeutil.timestamp_to_string(pkt['dateTime']), pkt)
@@ -819,6 +1156,8 @@ if __name__ == "__main__":
 
     def get_json_data(api_key):
         """Get the BloomSky API JSON format response and display on screen."""
+    def get_json_data(stn_dict):
+        """Obtain Bloomsky API response and display in JSON format."""
 
         # get an ApiClient object
         api_client = ApiClient(api_key=api_key)
@@ -826,5 +1165,21 @@ if __name__ == "__main__":
         raw_data = api_client.sd.get_data()
         # display the JSON response on screen
         print(json.dumps(raw_data, sort_keys=True, indent=2))
+        # extract the API key
+        api_key = stn_dict.get('api_key')
+        # if we have an API key then get the data otherwise exit after
+        # informing the user about the problem
+        if api_key:
+            # get an ApiClient object
+            api_client = ApiClient(api_key=api_key)
+            # get the JSON response
+            raw_data = api_client.sd.get_data()
+            # display the JSON response on screen
+            print json.dumps(raw_data, sort_keys=True, indent=2)
+        else:
+            print "Bloomsky API key required."
+            print "Specify API key in configuration file under [Bloomsky] or use --api_key option."
+            print "Exiting."
+            exit(1)
 
     main()

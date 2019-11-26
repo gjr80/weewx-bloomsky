@@ -17,6 +17,10 @@ Revision History
         - bump version number only
     29 May 2019         v0.1.1
         - reformatted comments
+    9 January 2018      v0.2.0rc2
+        - added ability to support multiple device IDs
+        - now supports user defined sensor map
+        - default poll interval now 60 seconds not 15 seconds
     25 June 2017        v0.1.0
         - initial implementation
 """
@@ -51,7 +55,7 @@ class BloomskyInstaller(ExtensionInstaller):
             config={
                 'Bloomsky': {
                     'api_key': 'INSERT_API_KEY_HERE',
-                    'poll_interval': 15,
+                    'poll_interval': 60,
                     'driver': 'user.bloomsky'
                 },
                 'Accumulator': {

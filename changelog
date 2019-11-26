@@ -1,6 +1,10 @@
 v1.0.0
 *   now works under python 2.6+ or python 3.5+ (python 2.5 no longer
     supported - use v0.1.1)
+v0.2.0rc2
+*   added ability to support multiple device IDs
+*   now supports user defined sensor map
+*   default poll interval now 60 seconds not 15 seconds
 v0.1.1
 *   added missing barometer/Pressure mapping to default sensor map
 *   changed default poll interval to 60 seconds (as advertised)
