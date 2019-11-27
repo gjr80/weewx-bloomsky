@@ -15,6 +15,7 @@ Version: 2.0.0                                          Date: 27 November 2019
 Revision History
     27 November 2019    v2.0.0
         - now WeeWX v4.0 python2/3 compatible
+        - added accumulator noop adder for field raining
     31 May 2019         v1.0.0
         - bump version number only
     29 May 2019         v0.1.1
@@ -77,6 +78,9 @@ class BloomskyInstaller(ExtensionInstaller):
                         'adder': 'noop'
                     },
                     'imageTimestamp': {
+                        'adder': 'noop'
+                    },
+                    'raining': {
                         'adder': 'noop'
                     }
                 }
