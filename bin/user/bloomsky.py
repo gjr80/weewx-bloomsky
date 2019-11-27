@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
 bloomsky.py
 
@@ -18,9 +18,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 1.0.1                                    Date: 23 June 2019
+Version: 2.0.0                                      Date: 27 November 2019
 
 Revision History
+    27 November 2019    v2.0.0
+        - WeeWX v4 python2/3 compatible
     23 June 2019        v1.0.1
         - additional exception handling to handle a malformed API response
     31 May 2019         v1.0.0
@@ -159,8 +161,7 @@ import socket
 import threading
 import time
 
-# python 2/3 compatibility shims
-import six
+# Python 2/3 compatibility shims
 from six import iteritems
 from six.moves import queue
 from six.moves import urllib
@@ -177,7 +178,7 @@ import weewx.wxformulas
 log = logging.getLogger(__name__)
 
 DRIVER_NAME = 'Bloomsky'
-DRIVER_VERSION = "1.0.0"
+DRIVER_VERSION = "2.0.0"
 
 
 def loader(config_dict, engine):
@@ -223,28 +224,6 @@ class BloomskyConfEditor(weewx.drivers.AbstractConfEditor):
 class BloomskyDriver(weewx.drivers.AbstractDevice):
     """BloomSky driver class."""
 
-    # map from BloomSky API field names to WeeWX db schema names
-    DEFAULT_SENSOR_MAP = {'deviceID':   'DeviceID',
-                          'deviceName': 'DeviceName',
-                          'Data':       {'outTemp':         'Temperature',
-                                         'txBatteryStatus': 'Voltage',
-                                         'UV':              'UVIndex',
-                                         'outHumidity':     'Humidity',
-                                         'imageURL':        'ImageURL',
-                                         'deviceType':      'DeviceType',
-                                         'barometer':       'Pressure',
-                                         'luminance':       'Luminance',
-                                         'raining':         'Rain',
-                                         'night':           'Night',
-                                         'imageTimestamp':  'ImageTS'},
-                          'Point':      {'inTemp':          'Temperature',
-                                         'inHumidity':      'Humidity'},
-                          'Storm':      {'rainRate':        'RainRate',
-                                         'windSpeed':       'SustainedWindSpeed',
-                                         'windDir':         'WindDirection',
-                                         'windGust':        'WindGust',
-                                         'rainDaily':       'RainDaily'}}
-
     # Sane default map from Bloomsky API field names to weeWX db schema names
     # that will work in most cases (ie single Sky and/or Storm). Accounts with
     # multiple DeviceIDs (ie more than one Sky or more than one Storm) will
@@ -272,18 +251,20 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
     DEFAULT_DELTAS = {'rain': 'rainDaily'}
 
     def __init__(self, **stn_dict):
+        # log the driver version
         log.info('driver version is %s' % DRIVER_VERSION)
+
+        # obtain the sensor map
         self.sensor_map = dict(BloomskyDriver.DEFAULT_SENSOR_MAP)
         if 'sensor_map' in stn_dict:
             self.sensor_map.update(stn_dict['sensor_map'])
         log.info('sensor map is %s' % self.sensor_map)
-        # number of time to try and get a response from the BloomSky API
 
         # get the deltas
         self.deltas = stn_dict.get('deltas', BloomskyDriver.DEFAULT_DELTAS)
         log.info('deltas is %s' % self.deltas)
 
-        # number of time to try and get a response from the Bloomsky API
+        # number of times to try and get a response from the Bloomsky API
         max_tries = int(stn_dict.get('max_tries', 3))
         # wait time in seconds between retries
         retry_wait = int(stn_dict.get('retry_wait', 10))
@@ -321,7 +302,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
 
     @property
     def ids(self):
-        """Return the Bloomsky device IDs."""
+        """Return the BloomSky device IDs."""
 
         raw_data = None
         # loop until we get some raw data
@@ -349,7 +330,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         return ids
 
     def genLoopPackets(self):
-        """Wait for BloomSky API from the ApiClient and yield a loop packets.
+        """Wait for data from the ApiClient and yield loop packets.
 
         Run a continuous loop checking the ApiClient queue for data. When data
         arrives map the raw data to a WeeWX loop packet and yield the packet.
@@ -360,62 +341,25 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
             try:
                 # get any day from the collector queue
                 raw_data = self.collector.queue.get(True, 10)
-                # create a loop packet
-                packet = self.data_to_packet(raw_data)
-                # log the packet but only if debug>=2
+                # log the raw data bt only if debug>=2
                 if weewx.debug >= 2:
-                    log.debug('Packet: %s' % packet)
-                # if we did get a packet then yield it for processing
+                    log.debug('Raw data: %s' % raw_data)
+                # create a loop packet and initialise with dateTime and usUnits
+                packet = {'dateTime': int(time.time() + 0.5),
+                          'usUnits':  weewx.METRICWX
+                          }
+                self.map_to_fields(packet, raw_data)
                 if packet:
+                    # calculate the packet rain value
+                    self.calculate_rain(packet)
+                    # log the packet but only if debug>=2
+                    if weewx.debug >= 2:
+                        log.debug('Packet: %s' % packet)
+                    # yield the packet for processing
                     yield packet
             except queue.Empty:
                 # there was nothing in the queue so continue
                 pass
-
-    def data_to_packet(self, data):
-        """Convert BloomSky data to WeeWX packet format.
-
-        The Collector provides BloomSky API response in the form of a dict that
-        may contain nested dicts of data. Fist map the BloomSky data to a flat
-        WeeWX data packet then add a packet timestamp and unit system fields.
-        Finally calculate rain since last packet.
-
-        Input:
-            data: BloomSky API response in dict format
-
-        Returns:
-            A WeeWX loop packet
-        """
-
-        # map the BloomSky API data to a WeeWX loop packet
-        packet = self._map_fields(data, self.sensor_map)
-        # add dateTime and usUnits fields
-        packet['dateTime'] = int(time.time() + 0.5)
-        # we ask the BloomSky API data for international units which gives us
-        # data conforming to the METRICWX unit system
-        packet['usUnits'] = weewx.METRICWX
-        # BloomSky reports 2 rainfall fields, RainDaily and 24hRain; the
-        # rainfall since midnight and the rainfall in the last 24 hours
-        # respectively. Therefore we need to calculate the incremental rain
-        # since the last packet using the RainDaily field (which was translated
-        # to the WeeWX dailyRain field). We will see a decrement at midnight
-        # when the counter is reset, this may cause issues if it is raining at
-        # the time but there is little that can be done.
-        if 'rainDaily' in packet:
-            # get the rain so far today
-            total = packet['rainDaily']
-            # have we seen a daily rain reset?
-            if (total is not None and self.last_rain is not None
-                    and total < self.last_rain):
-                # yes we have, just log it
-                log.info("dailyRain decrement ignored:"
-                         " new: %s old: %s" % (total, self.last_rain))
-            # calculate the rainfall since the last packet
-            packet['rain'] = weewx.wxformulas.calculate_rain(total,
-                                                             self.last_rain)
-            # adjust our last rain total
-            self.last_rain = total
-        return packet
 
     def map_to_fields(self, packet, raw_data):
         """Map Bloomsky raw data to weeWX packet fields.
@@ -424,6 +368,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         may contain nested dicts of data. Fist map the BloomSky data to a flat
         WeeWX data packet then add a packet timestamp and unit system fields.
         Finally calculate rain since last packet.
+
         Bloomsky API response is provided as a list of dicts with one dict per
         device ID. Iterate over each sensor map entry adding sensor data to the
         packet.
@@ -510,7 +455,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         for device in data:
             # do we have a device ID specifier or just a field specifier
             if len(parts) > 1:
-                if BloomskyDriver._match(parts[0], device['DeviceID']):
+                if BloomskyDriver._match(device['DeviceID'], parts[0]):
                     element = BloomskyDriver._find_in_device(device, parts[1])
                     if element:
                         return element
@@ -753,7 +698,6 @@ class ApiClient(Collector):
                 log.debug('Next update in %s seconds' % self._poll_interval)
             # sleep and see if its time to poll again
             time.sleep(1)
-
 
     @staticmethod
     def extract_data(data):
@@ -1034,7 +978,6 @@ if __name__ == "__main__":
     def main():
         import optparse
         import weecfg
-        import weeutil.logger
         import weewx
 
         weeutil.logger.setup('bloomsky', {})
@@ -1043,9 +986,9 @@ if __name__ == "__main__":
         parser.add_option('--version', dest='version', action='store_true',
                           help='display BloomSky driver version number')
         parser.add_option('--config', dest='config_path', metavar='CONFIG_FILE',
-                          help="Use configuration file CONFIG_FILE.")
-        parser.add_option('--debug', dest='debug', action='store_true',
-                          help='display diagnostic information while running')
+                          help="use configuration file CONFIG_FILE.")
+        parser.add_option('--debug', dest='debug', metavar='DEBUG',
+                          help='use WeeWX debug level DEBUG')
         parser.add_option('--run-driver', dest='run_driver', action='store_true',
                           metavar='RUN_DRIVER', help='run the BloomSky driver')
         parser.add_option('--api-key', dest='api_key', metavar='API_KEY',
@@ -1056,10 +999,6 @@ if __name__ == "__main__":
                           help='get BloomSky device IDs associated with an API key')
         (opts, args) = parser.parse_args()
 
-        # if --debug raise our log level
-        if opts.debug:
-            weewx.debug = 1
-
         # display driver version number
         if opts.version:
             print("%s driver version: %s" % (DRIVER_NAME, DRIVER_VERSION))
@@ -1068,6 +1007,20 @@ if __name__ == "__main__":
         # get config_dict to use
         config_path, config_dict = weecfg.read_config(opts.config_path, args)
         print("Using configuration file %s" % config_path)
+
+        # Now we can set up the user customized logging but first override the
+        # debug level if one was provide on the command line
+        if opts.debug:
+            weewx.debug = int(opts.debug)
+            config_dict['debug'] = weewx.debug
+        else:
+            # if no --debug force debug=0
+            weewx.debug = 0
+        weeutil.logger.setup('bloomsky', config_dict)
+        if opts.debug:
+            log.debug("Debug is %s", weewx.debug)
+
+        # get a station config dict
         stn_dict = config_dict.get('Bloomsky', {})
 
         # do we have a specific API key to use
@@ -1109,8 +1062,6 @@ if __name__ == "__main__":
     def run_driver(stn_dict):
         """Run the BloomSky driver."""
 
-        import weeutil.weeutil
-
         # wrap in a try..except so we can pickup a keyboard interrupt
         try:
             # get a BloomskyDriver object
@@ -1144,4 +1095,3 @@ if __name__ == "__main__":
             exit(1)
 
     main()
-
