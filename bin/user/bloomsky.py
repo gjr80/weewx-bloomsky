@@ -1136,6 +1136,7 @@ if __name__ == "__main__":
             raw_data = api_client.sd.get_data()
             # display the JSON response on screen
             print(json.dumps(raw_data, sort_keys=True, indent=2))
+            exit(0)
         else:
             print("BloomSky API key required.")
             print("Specify API key in configuration file under [Bloomsky] or use --api_key option.")
