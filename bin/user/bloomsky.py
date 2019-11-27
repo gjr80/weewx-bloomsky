@@ -30,6 +30,8 @@ Revision History
     29 May 2019         v0.1.1
         - added missing barometer, luminance and raining fields to default
           sensor map
+        - changed default poll interval to 60 seconds (as advertised)
+        - revised driver comments
     25 June 2017        v0.1.0
         - initial release
 
