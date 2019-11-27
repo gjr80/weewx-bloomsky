@@ -1016,12 +1016,8 @@ class ApiClient(Collector):
 
 
 """
-To test this driver, do one of the following depending on your WeeWX install
-type:
-    PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py
- 
 To use this driver in standalone mode for testing or development, use one of
-the following commands (depending on your weeWX install):
+the following commands (depending on your WeeWX install):
 
     $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py
 
@@ -1039,6 +1035,7 @@ if __name__ == "__main__":
         import optparse
         import weecfg
         import weeutil.logger
+        import weewx
 
         weeutil.logger.setup('bloomsky', {})
 
@@ -1056,13 +1053,12 @@ if __name__ == "__main__":
         parser.add_option('--get-json-data', dest='jdata', action='store_true',
                           help='get BloomSky API json response')
         parser.add_option('--get-deviceids', dest='get_ids', action='store_true',
-                          help='get Bloomsky device IDs associated with an API key')
+                          help='get BloomSky device IDs associated with an API key')
         (opts, args) = parser.parse_args()
 
         # if --debug raise our log level
         if opts.debug:
-            pass
-            # syslog.setlogmask(syslog.LOG_UPTO(syslog.LOG_DEBUG))
+            weewx.debug = 1
 
         # display driver version number
         if opts.version:
@@ -1071,13 +1067,13 @@ if __name__ == "__main__":
 
         # get config_dict to use
         config_path, config_dict = weecfg.read_config(opts.config_path, args)
-        print( "Using configuration file %s" % config_path)
+        print("Using configuration file %s" % config_path)
         stn_dict = config_dict.get('Bloomsky', {})
 
         # do we have a specific API key to use
         if opts.api_key:
             stn_dict['api_key'] = opts.api_key
-            print("Using Bloomsky API key %s" % opts.api_key)
+            print("Using BloomSky API key %s" % opts.api_key)
 
         # display device IDs
         if opts.get_ids:
@@ -1091,6 +1087,10 @@ if __name__ == "__main__":
         if opts.jdata:
             get_json_data(stn_dict)
 
+        # otherwise print our help
+        parser.print_help()
+        exit(0)
+
     def get_ids(stn_dict):
         """Display BloomSky device IDs associated with an API key."""
 
@@ -1098,16 +1098,16 @@ if __name__ == "__main__":
         driver = BloomskyDriver(**stn_dict)
         ids = driver.ids
         if len(ids) > 1:
-            print("Found Bloomsky device IDs: %s" % ', '.join(ids))
+            print("Found BloomSky device IDs: %s" % ', '.join(ids))
         elif len(ids) == 1:
-            print("Found Bloomsky device ID: %s" % ', '.join(ids))
+            print("Found BloomSky device ID: %s" % ', '.join(ids))
         else:
-            print("No Bloomsky device IDS found")
+            print("No BloomSky device IDS found")
         driver.closePort()
         exit(0)
 
     def run_driver(stn_dict):
-        """Run the Bloomsky driver."""
+        """Run the BloomSky driver."""
 
         import weeutil.weeutil
 
@@ -1123,7 +1123,7 @@ if __name__ == "__main__":
             driver.closePort()
 
     def get_json_data(stn_dict):
-        """Obtain Bloomsky API response and display in JSON format."""
+        """Obtain BloomSky API response and display in JSON format."""
 
         # extract the API key
         api_key = stn_dict.get('api_key')
@@ -1137,7 +1137,7 @@ if __name__ == "__main__":
             # display the JSON response on screen
             print(json.dumps(raw_data, sort_keys=True, indent=2))
         else:
-            print("Bloomsky API key required.")
+            print("BloomSky API key required.")
             print("Specify API key in configuration file under [Bloomsky] or use --api_key option.")
             print("Exiting.")
             exit(1)
