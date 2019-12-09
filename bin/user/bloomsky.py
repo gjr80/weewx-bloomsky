@@ -25,7 +25,7 @@ Revision History
         - additional exception handling to handle a malformed API response
         - fixed python shebang
     31 May 2019         v1.0.0
-        - now python 2.6+, 3.5+ compatible
+        - code now python 2.6+, 3.5+ (but not WeeWX 4) compatible
     29 May 2019         v0.1.1
         - added missing barometer, luminance and raining fields to default
           sensor map
@@ -178,7 +178,6 @@ from six.moves import urllib
 
 # WeeWX imports
 import weecfg
-# import weeutil
 
 import weeutil.weeutil
 import weewx.drivers
@@ -394,13 +393,12 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
 
         for delta_field, src_field in self.deltas.iteritems():
             if src_field in packet:
-                packet[delta_field] = self._calc_rain(src_field,
-                                                      packet[src_field],
+                packet[delta_field] = self._calc_rain(packet[src_field],
                                                       self._counter_values.get(src_field))
                 self._counter_values[src_field] = packet[src_field]
 
     @staticmethod
-    def _calc_rain(src_field, new_total, old_total):
+    def _calc_rain(new_total, old_total):
         """Calculate rainfall given the current and previous totals."""
 
         delta = None
