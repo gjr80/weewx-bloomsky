@@ -22,6 +22,7 @@ Version: 1.0.1                                    Date: 28 November 2019
 
 Revision History
     28 November 2019    v1.0.1
+        - revised sensor mapping now support multiple device IDs
         - additional exception handling to handle a malformed API response
         - fixed python shebang
     31 May 2019         v1.0.0
@@ -63,49 +64,54 @@ To use this driver:
 3.  The BloomSky driver uses a default sensor map to map BloomSky API fields to
 common WeeWX fields. If required this default sensor map can be overridden by
 adding a [[sensor_map]] stanza to the [Bloomsky] stanza in weewx.conf. To
-override the default sensor map add the following to the [Bloomsky]
-stanza in weewx,conf altering/removing/adding WeeWX field names as required:
+override the default sensor map add the following under the [Bloomsky]
+stanza in weewx.conf altering/removing/adding WeeWX field maps as required:
 
     # Define a mapping to map BloomSky API fields to WeeWX fields.
     #
-    # Format is weewx_field = bloomsky_api_field
+    # Format is weewx_field = device_id.field.element
     #
     # where:
     #   weewx_field is a WeeWX field name to be included in the generated loop
     #       packet
-    #   bloomsky_api_field is a BloomSky API JSON response field name
+    #   device_id is a BloomSky device ID or glob pattern used to match a device
+    #       ID. For example 12345678 would match the device ID 12345678, *1234
+    #       would match the first device ID found that ends in 1234 and * would
+    #       match the first device ID found.
+    #   field is an optional entry used to access API response elements within 
+    #       the Data, Point and Storm elements. For example, *.Data.Temperature 
+    #       would return the Temperature element within the Data element of the 
+    #       first device ID found, *.deviceName would return the deveiceName 
+    #       element of the first device ID found.
+    #   element is name of the desired BloomSky API response element. For 
+    #       example, *.Storm.rainRate would access the rainRate element of the 
+    #       Storm on the first device ID found.
     #
     #   Note: WeeWX field names will be used to populate the generated loop
     #         packets. Fields will only be saved to database if the field name
     #         is included in the in-use database schema.
     #
-    #   Child groups in the JSON response are designated by a [[[ ]]] stanza,
-    #   eg [[[Data]]].
-    #
     [[sensor_map]]
-        deviceID = DeviceID
-        deviceName = DeviceName
-        [[[Data]]]
-            outTemp = Temperature
-            txBatteryStatus = Voltage
-            UV = UVIndex
-            outHumidity = Humidity
-            barometer = Pressure
-            imageURL = ImageURL
-            deviceType = DeviceType
-            night = Night
-            raining = Rain
-            luminance = Luminance
-            imageTimestamp = ImageTS
-        [[[Point]]]
-            inTemp = Temperature
-            inHumidity = Humidity
-        [[[Storm]]]
-            rainRate = RainRate
-            windSpeed = SustainedWindSpeed
-            windDir = WindDirection
-            windGust = WindGust
-            dailyRain = RainDaily
+        deviceID = *.DeviceID
+        deviceName = *.DeviceName
+        outTemp = *.Data.Temperature
+        txBatteryStatus = *.Data.Voltage
+        UV = *.Data.UVIndex
+        outHumidity = *.Data.Humidity
+        imageURL = *.Data.ImageURL
+        deviceType = *.Data.DeviceType
+        night = *.Data.Night
+        imageTimestamp = *.Data.ImageTS
+        luminance = *.Data.Luminance
+        barometer = *.Data.pressure
+        inTemp = *.Point.Temperature
+        inHumidity = *.Point.Humidity
+        rainRate = *.Storm.RainRate
+        windSpeed = *.Storm.SustainedWindSpeed
+        windDir = *.Storm.WindDirection
+        windGust = *.Storm.WindGust
+        rainDaily = *.Storm.RainDaily
+        raining = *.Data.raining
 
 4.  Add the following stanza to weewx.conf:
 
@@ -141,27 +147,7 @@ installation type:
     $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py --run-driver --api-key=INSERT_API_KEY
 
 
-Support for Multiple Device IDs
-
-1.  In the case of Bloomsky accounts that have multiple device IDs (as distinct
-from multiple devices) a default install will result in data being obtained and
-used from the first found device ID. Other device IDs are ignored. This driver
-can use data from multiple device IDs by defining a sensor map in weewx.conf
-under [Bloomsky]. Refer to the Bloomsky driver User's Guide
-(https://github.com/gjr80/weewx-bloomsky/wiki/User's-Guide).
-
 7.  If WeeWX is running stop then start WeeWX otherwise start WeeWX.
-
-Support for Multiple Device IDs
-
-1.  In the case of Bloomsky accounts that have multiple device IDs (as distinct
-from multiple devices) a default install will result in data being obtained and
-used from the first found device ID. Other device IDs are ignored. This driver
-can use data from multiple device IDs by defining a sensor map in weewx.conf
-under [Bloomsky]. Refer to the Bloomsky driver User's Guide
-(https://github.com/gjr80/weewx-bloomsky/wiki/User's-Guide).
-
-
 """
 
 # Python imports
