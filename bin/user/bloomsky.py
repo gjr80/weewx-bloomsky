@@ -18,10 +18,10 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 1.0.1                                    Date: 28 November 2019
+Version: 1.0.1                                    Date: 10 December 2019
 
 Revision History
-    28 November 2019    v1.0.1
+    10 December 2019    v1.0.1
         - revised sensor mapping now support multiple device IDs
         - additional exception handling to handle a malformed API response
         - fixed python shebang

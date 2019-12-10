@@ -10,9 +10,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                         Installer for Bloomsky Driver
 
-Version: 1.0.0                                        Date: 31 May 2019
+Version: 1.0.1                                        Date: 10 December 2019
 
 Revision History
+    10 December 2019    v1.0.1
+        - bump version number only
     31 May 2019         v1.0.0
         - bump version number only
     29 May 2019         v0.1.1
@@ -31,7 +33,7 @@ from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
 REQUIRED_VERSION = "3.7.0"
-BLOOMSKY_VERSION = "1.0.0"
+BLOOMSKY_VERSION = "1.0.1"
 
 
 def loader():
@@ -41,14 +43,14 @@ def loader():
 class BloomskyInstaller(ExtensionInstaller):
     def __init__(self):
         if StrictVersion(weewx.__version__) < StrictVersion(REQUIRED_VERSION):
-            msg = "%s requires weeWX %s or greater, found %s" % (''.join(('Bloomsky driver ', BLOOMSKY_VERSION)),
+            msg = "%s requires WeeWX %s or greater, found %s" % (''.join(('Bloomsky driver ', BLOOMSKY_VERSION)),
                                                                  REQUIRED_VERSION,
                                                                  weewx.__version__)
             raise weewx.UnsupportedFeature(msg)
         super(BloomskyInstaller, self).__init__(
             version=BLOOMSKY_VERSION,
             name='Bloomsky',
-            description='weeWX driver for Bloomsky Sky1/Sky2/Storm personal weather stations.',
+            description='WeeWX driver for Bloomsky Sky1/Sky2/Storm personal weather stations.',
             author="Gary Roderick",
             author_email="gjroderick<@>gmail.com",
             files=[('bin/user', ['bin/user/bloomsky.py'])],
