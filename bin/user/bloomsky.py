@@ -25,6 +25,8 @@ Revision History
         - revised sensor mapping now support multiple device IDs
         - additional exception handling to handle a malformed API response
         - fixed python shebang
+        - reworked API response translation to better handle cases where
+          observations are 9999 (eg wind speed)
     31 May 2019         v1.0.0
         - code now python 2.6+, 3.5+ (but not WeeWX 4) compatible
     29 May 2019         v0.1.1
