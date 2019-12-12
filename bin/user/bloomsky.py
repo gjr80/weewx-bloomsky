@@ -169,6 +169,8 @@ import weeutil.weeutil
 import weewx.drivers
 import weewx.wxformulas
 
+from weeutil.weeutil import tobool
+
 DRIVER_NAME = 'Bloomsky'
 DRIVER_VERSION = "1.0.1"
 
@@ -289,6 +291,13 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
         # BloomSky claim data is updated from the station every 5-8 minutes.
         # Set how often (in seconds) we should poll the API.
         poll_interval = int(stn_dict.get('poll_interval', 60))
+        # code used by BloomSky API to indicate observation data invalid/not
+        # present, default to 9999
+        not_present = int(stn_dict.get('not_present', 9999))
+        # ignore observations that are not present in the API response or
+        # include them in the packet as None values, default to True ie drop
+        # the field
+        ignore_not_present = tobool(stn_dict.get('ignore_not_present', True))
         # API key issued obtained from dashboard.bloomsky.com
         api_key = stn_dict['api_key']
         obfuscated = ''.join(('"....', api_key[-4:], '"'))
@@ -296,13 +305,20 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                                                                obfuscated))
         logdbg('max tries is %d, retry wait time is %d seconds' % (max_tries,
                                                                    retry_wait))
+        logdbg("observations that are not present are indicated by '%d'" % (not_present,))
+        if ignore_not_present:
+            logdbg('observations that are deemed not present will be ignored')
+        else:
+            logdbg("observations that are deemed not present will be set to 'None'")
         self._counter_values = dict()
         self.last_rain = None
         # create an ApiClient object to interact with the BloomSky API
         self.collector = ApiClient(api_key,
                                    poll_interval=poll_interval,
                                    max_tries=max_tries,
-                                   retry_wait=retry_wait)
+                                   retry_wait=retry_wait,
+                                   not_present=not_present,
+                                   ignore_not_present=ignore_not_present)
         # the ApiClient runs in its own thread so start the thread
         self.collector.startup()
 
@@ -601,14 +617,12 @@ class ApiClient(Collector):
     # before handing to the driver proper. This dict maps to the API response
     # fields that require manipulation/translation to a method in the class.
     # Nested dictionaries are used for fields in child fields.
-    TRANSLATIONS = {'Data': {'Voltage': '_trans_voltage',
-                             'UVIndex': '_trans_uv',
-                             'Luminance': '_trans_luminance'
-                             },
+    TRANSLATIONS = {'Data': {'Voltage': '_trans_voltage'},
                     'Storm': {'WindDirection': '_trans_wind_dir'}
                     }
 
-    def __init__(self, api_key, poll_interval=60, max_tries=3, retry_wait=10):
+    def __init__(self, api_key, poll_interval=60, max_tries=3, retry_wait=10,
+                 not_present=9999, ignore_not_present=True):
         """Initialise our class."""
 
         # the API key from dashboard.bloomsky.com
@@ -619,6 +633,12 @@ class ApiClient(Collector):
         self._max_tries = max_tries
         # period in seconds to wait before polling again, default is 10 seconds
         self._retry_wait = retry_wait
+        # code used by BloomSky API to indicate observation data invalid/not
+        # present
+        self.not_present = not_present
+        # ignore observations that are not present in the API response or
+        # include them in the packet as None values
+        self.ignore_not_present = ignore_not_present
         # get a station data object to do the handle the interaction with the
         # BloomSky API
         self.sd = ApiClient.StationData(api_key)
@@ -644,7 +664,7 @@ class ApiClient(Collector):
                         # extract the data we want from the JSON response, do
                         # any manipulation/translation and return as a list of
                         # dicts
-                        data = ApiClient.extract_data(raw_data)
+                        data = ApiClient.extract_data(self, raw_data)
                         # log the extracted data for debug purposes
                         logdbg3("Extracted data: %s" % data)
                         # put the data in the queue
@@ -676,8 +696,7 @@ class ApiClient(Collector):
             # sleep and see if its time to poll again
             time.sleep(1)
 
-    @staticmethod
-    def extract_data(data):
+    def extract_data(self, data):
         """Extract the data of interest.
 
         Iterate through each API response field we are interested in and if it
@@ -715,6 +734,8 @@ class ApiClient(Collector):
                 for item in ApiClient.STORM_ITEMS:
                     if item in dev_id['Storm']:
                         device_dict['Storm'][item] = dev_id['Storm'][item]
+            # Process any API response fields that indicate 'missing data'
+            device_dict.update(ApiClient.process_missing(self, device_dict))
             # perform any manipulation/translation of the API response data
             # (eg if no Storm device UV will be 9999, weeWX expects so UV field
             # or data is no sensor so delete the UV entry)
@@ -723,22 +744,51 @@ class ApiClient(Collector):
             device_list.append(device_dict)
         return device_list
 
+    def process_missing(self, data):
+        """Process any API response fields that are missing (9999).
+
+        The BloomSky API returns the value 9999 for fields that have no data
+        (eg station is temporarily off line or does not exist). Passing this
+        data through to WeeWX can lead to nonsense data. The solution is to
+        either drop the field from the packet or include the field and set to
+        None.
+        """
+
+        # iterate over each item in the data dict
+        for key, element in data.items():
+            # if the item is a dict then recursively call ourself to process
+            # any fields in the child dict
+            if hasattr(element, 'keys'):
+                if key in data:
+                    data[key].update(ApiClient.process_missing(self, data[key]))
+            elif key in data:
+                # The key is not a dict so we have an observation value. Check
+                # if it is the same as the not_present value and if so decide
+                # whether to drop the field or set to None.
+                if data[key] == self.not_present:
+                    logdbg2("API response field '%s' deemed not present" % (key,))
+                    if self.ignore_not_present:
+                        data.pop(key)
+                    else:
+                        data[key] = None
+        return data
+
     @staticmethod
     def translate_data(data, td):
         """Translate BloomSky API response data to meet WeeWX requirements."""
 
         # iterate over each item in the translation dict
-        for key, value in td.items():
+        for key, translator in td.items():
             # if the item is dict then recursively call ourself to translate
             # any fields in the child dict
-            if hasattr(value, 'keys'):
+            if hasattr(translator, 'keys'):
                 if key in data:
-                    data[key].update(ApiClient.translate_data(data[key], value))
+                    data[key].update(ApiClient.translate_data(data[key], translator))
             elif key in data:
                 # The key is not a dict and the value contains the method we
                 # must call for the translation. Obtain an object pointing to
                 # the method required and call it.
-                getattr(ApiClient, value)(data, key)
+                getattr(ApiClient, translator)(data, key)
         return data
 
     @staticmethod
@@ -760,45 +810,6 @@ class ApiClient(Collector):
             # if the field contains non-numeric data we can't convert it so set
             # it to None
             data[key] = None
-
-    @staticmethod
-    def _trans_uv(data, key, not_present=9999):
-        """Translate BloomSky API UVIndex field.
-
-        API provides UV of 9999 is no UV (Storm) sensor exists, WeeWX expects
-        there to be no UV field if no UV sensor exists.
-
-        Inputs:
-            data: Dict containing the translated API response
-            key:  Key to the dict of the field concerned
-            not_present: API response field 'UVField' value if no Storm is
-                         present, default is 9999
-        """
-
-        # if the UV field is 9999, there is no Storm and no UV sensor so delete
-        # the entry
-        if data[key] == not_present:
-            data.pop(key)
-
-    @staticmethod
-    def _trans_luminance(data, key, not_present=9999):
-        """Translate BloomSky API Luminance field.
-
-        API provides Luminance of 9999 is no Luminance (Storm) sensor exists,
-        WeeWX expects there to be no Luminance field if no Luminance sensor
-        exists.
-
-        Inputs:
-            data: Dict containing the translated API response
-            key:  Key to the dict of the field concerned
-            not_present: API response field 'Luminance' value if no Storm is
-                         present, default is 9999
-        """
-
-        # if the Luminance field is 9999, there is no Storm and no Luminance
-        # sensor so delete the entry
-        if data[key] == not_present:
-            data.pop(key)
 
     @staticmethod
     def _trans_wind_dir(data, key):
