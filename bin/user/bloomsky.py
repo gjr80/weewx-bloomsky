@@ -105,7 +105,7 @@ stanza in weewx.conf altering/removing/adding WeeWX field maps as required:
         night = *.Data.Night
         imageTimestamp = *.Data.ImageTS
         luminance = *.Data.Luminance
-        barometer = *.Data.pressure
+        barometer = *.Data.Pressure
         inTemp = *.Point.Temperature
         inHumidity = *.Point.Humidity
         rainRate = *.Storm.RainRate
@@ -113,7 +113,7 @@ stanza in weewx.conf altering/removing/adding WeeWX field maps as required:
         windDir = *.Storm.WindDirection
         windGust = *.Storm.WindGust
         rainDaily = *.Storm.RainDaily
-        raining = *.Data.raining
+        raining = *.Data.Rain
 
 4.  Add the following stanza to weewx.conf:
 
@@ -262,7 +262,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                           'night':           '*.Data.Night',
                           'imageTimestamp':  '*.Data.ImageTS',
                           'luminance':       '*.Data.Luminance',
-                          'barometer':       '*.Data.pressure',
+                          'barometer':       '*.Data.Pressure',
                           'inTemp':          '*.Point.Temperature',
                           'inHumidity':      '*.Point.Humidity',
                           'rainRate':        '*.Storm.RainRate',
@@ -270,7 +270,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                           'windDir':         '*.Storm.WindDirection',
                           'windGust':        '*.Storm.WindGust',
                           'rainDaily':       '*.Storm.RainDaily',
-                          'raining':         '*.Data.raining'
+                          'raining':         '*.Data.Rain'
                           }
     DEFAULT_DELTAS = {'rain': 'rainDaily'}
 
