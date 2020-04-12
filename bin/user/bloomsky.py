@@ -4,7 +4,7 @@ bloomsky.py
 
 A WeeWX driver for the BloomSky family of personal weather devices.
 
-Copyright (C) 2017-19 Gary Roderick                 gjroderick<at>gmail.com
+Copyright (C) 2017-20 Gary Roderick                 gjroderick<at>gmail.com
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -18,15 +18,19 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 1.0.1                                    Date: 10 December 2019
+Version: 1.0.1                                    Date: 13 April 2020
 
 Revision History
-    10 December 2019    v1.0.1
+    13 April 2020       v1.0.1
         - revised sensor mapping now support multiple device IDs
         - additional exception handling to handle a malformed API response
         - fixed python shebang
         - reworked API response translation to better handle cases where
           observations are 9999 (eg wind speed)
+        - fixed incorrect logerror calls
+        - fixed issue where device with flat battery resulted in nonsense
+          values for some obs
+        - fixed incorrect pressure/barometer and Rain/raining API field names
     31 May 2019         v1.0.0
         - code now python 2.6+, 3.5+ (but not WeeWX 4) compatible
     29 May 2019         v0.1.1
