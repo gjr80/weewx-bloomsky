@@ -2,6 +2,12 @@ v1.0.1
 *   revised sensor mapping now support multiple device IDs
 *   additional exception handling to handle a malformed API response
 *   fixed python shebang
+*   reworked API response translation to better handle cases where observations
+    are 9999 (eg wind speed)
+*   fixed incorrect logerror calls
+*   fixed issue where device with flat battery resulted in nonsense values for
+    some obs
+*   fixed incorrect pressure/barometer and Rain/raining API field names
 v1.0.0
 *   now works under python 2.6+ or python 3.5+ (python 2.5 no longer
     supported - use v0.1.1)
