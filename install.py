@@ -10,10 +10,10 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                         Installer for Bloomsky Driver
 
-Version: 1.0.1                                        Date: 10 December 2019
+Version: 1.0.1                                        Date: 13 April 2020
 
 Revision History
-    10 December 2019    v1.0.1
+    13 April 2020       v1.0.1
         - bump version number only
     31 May 2019         v1.0.0
         - bump version number only
