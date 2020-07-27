@@ -172,12 +172,59 @@ from six.moves.urllib.parse import urlencode
 
 # WeeWX imports
 import weeutil
-import weeutil.logger
+# import weeutil.logger
 import weewx.drivers
 import weewx.wxformulas
 
 # obtain a logger object
 log = logging.getLogger(__name__)
+
+# import/setup logging, WeeWX v3 is syslog based but WeeWX v4 is logging based,
+# try v4 logging and if it fails use v3 logging
+try:
+    # WeeWX4 logging
+    import logging
+    from weeutil.logger import log_traceback
+    log = logging.getLogger("%s: %s" % ('gw1000', __name__))
+
+    def logdbg(msg):
+        log.debug(msg)
+
+    def loginf(msg):
+        log.info(msg)
+
+    def logerr(msg):
+        log.error(msg)
+
+    # log_traceback() generates the same output but the signature and code is
+    # different between v3 and v4. We only need log_traceback at the log.info
+    # level so define a suitable wrapper function.
+    def log_traceback_info(prefix=''):
+        log_traceback(log.info, prefix=prefix)
+
+except ImportError:
+    # WeeWX legacy (v3) logging via syslog
+    import syslog
+    from weeutil.weeutil import log_traceback
+
+    def logmsg(level, msg):
+        syslog.syslog(level, 'gw1000: %s' % msg)
+
+    def logdbg(msg):
+        logmsg(syslog.LOG_DEBUG, msg)
+
+    def loginf(msg):
+        logmsg(syslog.LOG_INFO, msg)
+
+    def logerr(msg):
+        logmsg(syslog.LOG_ERR, msg)
+
+    # log_traceback() generates the same output but the signature and code is
+    # different between v3 and v4. We only need log_traceback at the log.info
+    # level so define a suitable wrapper function.
+    def log_traceback_info(prefix=''):
+        log_traceback(prefix=prefix, loglevel=syslog.LOG_INFO)
+
 
 DRIVER_NAME = 'Bloomsky'
 DRIVER_VERSION = "2.0.0"
@@ -963,88 +1010,30 @@ class ApiClient(Collector):
 
 """
 To use this driver in standalone mode for testing or development, use one of
-the following commands (depending on your WeeWX install):
+the following commands (depending on your WeeWX install). For setup.py installs 
+use:
 
-    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/bloomsky.py
+    $ PYTHONPATH=/home/weewx/bin python -m user.bloomsky
 
-    or
+    or for package installs use:
 
-    $ PYTHONPATH=/usr/share/weewx python /usr/share/weewx/user/bloomsky.py
+    $ PYTHONPATH=/usr/share/weewx python -m user.bloomsky
 
-    The above commands will display details of available command line options.
+The above commands will display details of available command line options.
+    
+Note. Whilst the driver may be run independently of WeeWX the driver still 
+requires WeeWX and it's dependencies be installed. Consequently, if WeeWX 4.0.0
+or later is installed the driver must be run under the same Python version as 
+WeeWX uses. This means that on some systems 'python' in the above commands may 
+need to be changed to 'python2' or 'python3'.
 """
 
-if __name__ == "__main__":
-    usage = """%prog [options] [--help]"""
 
-    def main():
-        import optparse
-        import weecfg
-        import weewx
+def main():
 
-        weeutil.logger.setup('bloomsky', {})
-
-        parser = optparse.OptionParser(usage=usage)
-        parser.add_option('--version', dest='version', action='store_true',
-                          help='display BloomSky driver version number')
-        parser.add_option('--config', dest='config_path', metavar='CONFIG_FILE',
-                          help="use configuration file CONFIG_FILE.")
-        parser.add_option('--debug', dest='debug', metavar='DEBUG',
-                          help='use WeeWX debug level DEBUG')
-        parser.add_option('--run-driver', dest='run_driver', action='store_true',
-                          metavar='RUN_DRIVER', help='run the BloomSky driver')
-        parser.add_option('--api-key', dest='api_key', metavar='API_KEY',
-                          help='BloomSky API key')
-        parser.add_option('--get-json-data', dest='jdata', action='store_true',
-                          help='get BloomSky API json response')
-        parser.add_option('--get-deviceids', dest='get_ids', action='store_true',
-                          help='get BloomSky device IDs associated with an API key')
-        (opts, args) = parser.parse_args()
-
-        # display driver version number
-        if opts.version:
-            print("%s driver version: %s" % (DRIVER_NAME, DRIVER_VERSION))
-            exit(0)
-
-        # get config_dict to use
-        config_path, config_dict = weecfg.read_config(opts.config_path, args)
-        print("Using configuration file %s" % config_path)
-
-        # Now we can set up the user customized logging but first override the
-        # debug level if one was provide on the command line
-        if opts.debug:
-            weewx.debug = int(opts.debug)
-            config_dict['debug'] = weewx.debug
-        else:
-            # if no --debug force debug=0
-            weewx.debug = 0
-        weeutil.logger.setup('bloomsky', config_dict)
-        if opts.debug:
-            log.debug("Debug is %s", weewx.debug)
-
-        # get a station config dict
-        stn_dict = config_dict.get('Bloomsky', {})
-
-        # do we have a specific API key to use
-        if opts.api_key:
-            stn_dict['api_key'] = opts.api_key
-            print("Using BloomSky API key %s" % opts.api_key)
-
-        # display device IDs
-        if opts.get_ids:
-            get_ids(stn_dict)
-
-        # run the driver
-        if opts.run_driver:
-            run_driver(stn_dict)
-
-        # get BloomSky API JSON response
-        if opts.jdata:
-            get_json_data(stn_dict)
-
-        # otherwise print our help
-        parser.print_help()
-        exit(0)
+    import optparse
+    import weecfg
+    import weewx
 
     def get_ids(stn_dict):
         """Display BloomSky device IDs associated with an API key."""
@@ -1061,8 +1050,8 @@ if __name__ == "__main__":
         driver.closePort()
         exit(0)
 
-    def run_driver(stn_dict):
-        """Run the BloomSky driver."""
+    def test_driver(stn_dict):
+        """Test the BloomSky driver."""
 
         # wrap in a try..except so we can pickup a keyboard interrupt
         try:
@@ -1096,4 +1085,89 @@ if __name__ == "__main__":
             print("Exiting.")
             exit(1)
 
+    usage = """Usage: python -m user.bloomsky --help
+       python -m user.bloomsky --version
+       python -m user.bloomsky --test-driver
+            [CONFIG_FILE|--config=CONFIG_FILE]  
+            [--api-key=API_KEY]
+            [--debug=0|1|2|3]     
+       python -m user.bloomsky --get-json-data
+            [CONFIG_FILE|--config=CONFIG_FILE]
+            [--api-key=API_KEY]  
+            [--debug=0|1|2|3]     
+       python -m user.bloomsky --get-deviceids
+            [CONFIG_FILE|--config=CONFIG_FILE]  
+            [--api-key=API_KEY]  
+            [--debug=0|1|2|3]"""
+
+    parser = optparse.OptionParser(usage=usage)
+    parser.add_option('--version', dest='version', action='store_true',
+                      help='display BloomSky driver version number')
+    parser.add_option('--config', dest='config_path', metavar='CONFIG_FILE',
+                      help="use configuration file CONFIG_FILE.")
+    parser.add_option('--debug', dest='debug', metavar='DEBUG',
+                      help='use WeeWX debug level DEBUG')
+    parser.add_option('--test-driver', dest='test_driver', action='store_true',
+                      metavar='TEST_DRIVER', help='test the BloomSky driver')
+    parser.add_option('--api-key', dest='api_key', metavar='API_KEY',
+                      help='BloomSky API key')
+    parser.add_option('--get-json-data', dest='jdata', action='store_true',
+                      help='get BloomSky API json response')
+    parser.add_option('--get-deviceids', dest='get_ids', action='store_true',
+                      help='get BloomSky device IDs associated with an API key')
+    (opts, args) = parser.parse_args()
+
+    # get config_dict to use
+    config_path, config_dict = weecfg.read_config(opts.config_path, args)
+    print("Using configuration file %s" % config_path)
+    stn_dict = config_dict.get('Bloomsky', {})
+
+    # set weewx.debug as necessary
+    if opts.debug is not None:
+        _debug = weeutil.weeutil.to_int(opts.debug)
+    else:
+        _debug = weeutil.weeutil.to_int(config_dict.get('debug', 0))
+    weewx.debug = _debug
+
+    # Now we can set up the user customized logging but we need to handle both
+    # v3 and v4 logging. V4 logging is very easy but v3 logging requires us to
+    # set up syslog and raise our log level based on weewx.debug
+    try:
+        # assume v 4 logging
+        weeutil.logger.setup('weewx', config_dict)
+    except AttributeError:
+        # must be v3 logging, so first set the defaults for the system logger
+        syslog.openlog('weewx', syslog.LOG_PID | syslog.LOG_CONS)
+        # now raise the log level if required
+        if weewx.debug > 0:
+            syslog.setlogmask(syslog.LOG_UPTO(syslog.LOG_DEBUG))
+
+    # display driver version number
+    if opts.version:
+        print("%s driver version: %s" % (DRIVER_NAME, DRIVER_VERSION))
+        exit(0)
+
+    # do we have a specific API key to use
+    if opts.api_key:
+        stn_dict['api_key'] = opts.api_key
+        print("Using BloomSky API key %s" % opts.api_key)
+
+    # display device IDs
+    if opts.get_ids:
+        get_ids(stn_dict)
+
+    # run the driver
+    if opts.test_driver:
+        test_driver(stn_dict)
+
+    # get BloomSky API JSON response
+    if opts.jdata:
+        get_json_data(stn_dict)
+
+    # otherwise print our help
+    parser.print_help()
+    exit(0)
+
+
+if __name__ == "__main__":
     main()
