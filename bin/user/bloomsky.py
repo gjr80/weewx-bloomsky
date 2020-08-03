@@ -18,10 +18,10 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 2.0.0b1                                      Date: 27 July 2020
+Version: 2.0.0                                          Date: 3 August 2020
 
 Revision History
-    27 July 2020        v2.0.0
+    3 August 2020       v2.0.0
         - WeeWX v4 python2/3 compatible
         - restructured main()
         - restructured options menu when running directly
@@ -232,7 +232,7 @@ except ImportError:
 
 
 DRIVER_NAME = 'Bloomsky'
-DRIVER_VERSION = "2.0.0b1"
+DRIVER_VERSION = "2.0.0"
 
 
 def loader(config_dict, engine):

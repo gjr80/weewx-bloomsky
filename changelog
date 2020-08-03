@@ -1,3 +1,8 @@
+v2.0.0
+*   WeeWX 3.7+/4.x python2/3 compatible
+*   restructured main()
+*   restructured options menu when driver is run directly
+*   accumulator 'noop' adder now added for field 'raining' on install
 v1.0.0
 *   now works under python 2.6+ or python 3.5+ (python 2.5 no longer
     supported - use v0.1.1)
