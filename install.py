@@ -10,11 +10,12 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                         Installer for Bloomsky Driver
 
-Version: 1.0.1                                        Date: 13 April 2020
+Version: 2.0.0                                          Date: 3 August 2020
 
 Revision History
-    13 April 2020       v1.0.1
-        - bump version number only
+    27 August 2020      v2.0.0
+        - now WeeWX 3.7+/4.x python2/3 compatible
+        - added accumulator noop adder for field raining
     31 May 2019         v1.0.0
         - bump version number only
     29 May 2019         v0.1.1
@@ -33,7 +34,7 @@ from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
 REQUIRED_VERSION = "3.7.0"
-BLOOMSKY_VERSION = "1.0.1"
+BLOOMSKY_VERSION = "2.0.0"
 
 
 def loader():
@@ -43,7 +44,7 @@ def loader():
 class BloomskyInstaller(ExtensionInstaller):
     def __init__(self):
         if StrictVersion(weewx.__version__) < StrictVersion(REQUIRED_VERSION):
-            msg = "%s requires WeeWX %s or greater, found %s" % (''.join(('Bloomsky driver ', BLOOMSKY_VERSION)),
+            msg = "%s requires weeWX %s or greater, found %s" % (''.join(('Bloomsky driver ', BLOOMSKY_VERSION)),
                                                                  REQUIRED_VERSION,
                                                                  weewx.__version__)
             raise weewx.UnsupportedFeature(msg)
@@ -77,6 +78,9 @@ class BloomskyInstaller(ExtensionInstaller):
                         'adder': 'noop'
                     },
                     'imageTimestamp': {
+                        'adder': 'noop'
+                    },
+                    'raining': {
                         'adder': 'noop'
                     }
                 }
