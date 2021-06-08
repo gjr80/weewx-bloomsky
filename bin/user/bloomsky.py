@@ -16,7 +16,7 @@ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program.  If not, see http://www.gnu.org/licenses/.
+this program.  If not, see https://www.gnu.org/licenses/.
 
 Version: 2.0.0                                          Date: 3 August 2020
 
@@ -163,7 +163,6 @@ under [Bloomsky]. Refer to the Bloomsky driver User's Guide
 # Python imports
 import fnmatch
 import json
-import logging
 import socket
 import threading
 import time
@@ -177,7 +176,6 @@ from six.moves.urllib.parse import urlencode
 
 # WeeWX imports
 import weeutil
-# import weeutil.logger
 import weewx.drivers
 import weewx.wxformulas
 
