@@ -10,9 +10,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                         Installer for Bloomsky Driver
 
-Version: 2.0.0                                          Date: 3 August 2020
+Version: 2.0.1                                          Date: 8 June 2021
 
 Revision History
+    8 June 2021         v2.0.1
+        - bump version number only
     27 August 2020      v2.0.0
         - now WeeWX 3.7+/4.x python2/3 compatible
         - added accumulator noop adder for field raining
@@ -34,7 +36,7 @@ from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
 REQUIRED_VERSION = "3.7.0"
-BLOOMSKY_VERSION = "2.0.0"
+BLOOMSKY_VERSION = "2.0.1"
 
 
 def loader():
