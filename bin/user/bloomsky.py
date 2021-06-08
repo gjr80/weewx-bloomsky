@@ -293,7 +293,7 @@ class BloomskyDriver(weewx.drivers.AbstractDevice):
                           'night':           '*.Data.Night',
                           'imageTimestamp':  '*.Data.ImageTS',
                           'luminance':       '*.Data.Luminance',
-                          'barometer':       '*.Data.pressure',
+                          'barometer':       '*.Data.Pressure',
                           'inTemp':          '*.Point.Temperature',
                           'inHumidity':      '*.Point.Humidity',
                           'rainRate':        '*.Storm.RainRate',
