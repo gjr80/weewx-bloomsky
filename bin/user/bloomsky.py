@@ -18,9 +18,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 2.0.1                                          Date: 8 June 2021
+Version: 2.0.2                                          Date: 6 September 2021
 
 Revision History
+    6 September 2021    v2.0.2
+        - removed premature logging call
     8 June 2021         v2.0.1
         - fixed incorrect barometer/pressure field name in default field map
     3 August 2020       v2.0.0
@@ -181,9 +183,6 @@ import weeutil
 import weewx.drivers
 import weewx.wxformulas
 
-# obtain a logger object
-log = logging.getLogger(__name__)
-
 # import/setup logging, WeeWX v3 is syslog based but WeeWX v4 is logging based,
 # try v4 logging and if it fails use v3 logging
 try:
@@ -232,7 +231,7 @@ except ImportError:
 
 
 DRIVER_NAME = 'Bloomsky'
-DRIVER_VERSION = "2.0.1"
+DRIVER_VERSION = "2.0.2"
 
 
 def loader(config_dict, engine):
