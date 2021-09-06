@@ -10,9 +10,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                         Installer for Bloomsky Driver
 
-Version: 2.0.1                                          Date: 8 June 2021
+Version: 2.0.2                                          Date: 6 September 2021
 
 Revision History
+    6 September 2021    v2.0.2
+        - bump version number only
     8 June 2021         v2.0.1
         - bump version number only
     27 August 2020      v2.0.0
@@ -36,7 +38,7 @@ from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
 REQUIRED_VERSION = "3.7.0"
-BLOOMSKY_VERSION = "2.0.1"
+BLOOMSKY_VERSION = "2.0.2"
 
 
 def loader():
